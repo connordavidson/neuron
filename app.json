@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "FlowReader",
+    "slug": "flowreader",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios"],
+    "userInterfaceStyle": "automatic",
+    "scheme": "flowreader",
+    "ios": {
+      "appleTeamId": "T4LY8DN565",
+      "bundleIdentifier": "com.example.flowreader",
+      "supportsTablet": true,
+      "infoPlist": {
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "PDF document",
+            "CFBundleTypeRole": "Viewer",
+            "CFBundleTypeExtensions": ["pdf"],
+            "CFBundleTypeMIMETypes": ["application/pdf"],
+            "LSHandlerRank": "Alternate",
+            "LSItemContentTypes": ["com.adobe.pdf"]
+          }
+        ],
+        "LSSupportsOpeningDocumentsInPlace": true
+      }
+    },
+    "plugins": ["expo-document-picker"]
+  }
+}
