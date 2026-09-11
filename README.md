@@ -1,6 +1,6 @@
 # neuron
 
-neuron is a new type of ebook reader. The current app, FlowReader, is a React Native iOS reader that imports text-based ebook PDFs and turns them into a focused, vertical, two-sentence feed.
+neuron is a new type of reader. The current app, FlowReader, is a React Native iOS reader that imports text-based ebook PDFs and turns them into a focused, vertical, two-sentence feed.
 
 ## What it does
 
