@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "parserVersion": 6,
+  "headlineLockedTest": {
+    "status": "not-run",
+    "expectedBooks": 100,
+    "scoredBooks": 0,
+    "promotionAllowed": false,
+    "reason": "The licensed locked-test set must be downloaded and independently annotated in the private benchmark environment."
+  },
+  "automatedFixtureChecks": {
+    "status": "passing",
+    "pythonTests": 5,
+    "nodeTests": 34
+  },
+  "licensedSmokeCheck": {
+    "status": "passing",
+    "source": "OAPEN",
+    "documents": 1,
+    "pages": 310,
+    "structuredSpans": 13359,
+    "readingUnits": 2672,
+    "contextualSupplements": 40,
+    "runningFurnitureLinesRemoved": 147,
+    "notes": "Aggregate diagnostics only. The PDF, extracted text, predictions, and book-level report remain ignored and private."
+  }
+}
