@@ -1,0 +1,16 @@
+[project]
+name = "neuron-corpus"
+version = "0.1.0"
+description = "Private, reproducible benchmark tooling for Neuron's deterministic ebook parser"
+requires-python = ">=3.12"
+dependencies = [
+  "pdfplumber>=0.11,<1",
+  "pypdf>=5,<7",
+  "reportlab>=4,<5",
+]
+
+[project.scripts]
+corpus = "tools.corpus_cli.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["tools.corpus_cli*"]

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "language": "en",
+  "bornDigitalOnly": true,
+  "oapen": {
+    "target": 300,
+    "discovery": 150,
+    "development": 50,
+    "lockedTest": 100,
+    "minimumPublishers": 20,
+    "minimumSubjects": 10,
+    "searchEndpoint": "https://library.oapen.org/rest/search",
+    "query": "language:English"
+  },
+  "standardEbooks": {
+    "target": 40,
+    "opdsFeed": "https://standardebooks.org/opds/all",
+    "layouts": ["trade", "compact", "two-column"]
+  },
+  "allowedRightsUris": [
+    "https://creativecommons.org/publicdomain/mark/1.0/",
+    "https://creativecommons.org/publicdomain/zero/1.0/",
+    "https://creativecommons.org/licenses/by/3.0/",
+    "https://creativecommons.org/licenses/by/4.0/"
+  ]
+}

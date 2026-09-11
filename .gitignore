@@ -20,3 +20,18 @@ build/
 *.xcarchive
 *.ipa
 *.log
+
+# Licensed benchmark inputs and derived content stay local. Only schemas,
+# tooling, synthetic fixtures, and aggregate documentation belong in Git.
+corpus/data/
+corpus/cache/
+corpus/extracted/
+corpus/rendered/
+corpus/predictions/
+corpus/annotations/private/
+corpus/reports/private/
+corpus/manifest.local.json
+corpus/**/*.sqlite3
+corpus/**/*.token
+__pycache__/
+*.pyc

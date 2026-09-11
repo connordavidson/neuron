@@ -11,6 +11,8 @@
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.cjs",
+    "test:corpus": "python3 -m unittest discover -s tools/corpus_cli/tests",
+    "corpus": "python3 -m tools.corpus_cli",
     "doctor": "npx expo-doctor@latest"
   },
   "dependencies": {

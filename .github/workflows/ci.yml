@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fixtures:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: npm ci
+      - run: python -m pip install -r requirements-corpus.txt
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run test:corpus
+
+  private-corpus:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: python3 -m pip install -r requirements-corpus.txt
+      - run: npm run corpus -- extract --split locked-test
+      - run: npm run corpus -- analyze --parse
+      - run: npm run corpus -- evaluate --split locked-test --enforce

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neuron.local/schemas/corpus-manifest-v1.json",
+  "title": "Neuron licensed PDF corpus manifest",
+  "type": "object",
+  "required": ["schemaVersion", "frozenAt", "selection", "items"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "frozenAt": { "type": "string", "format": "date-time" },
+    "selection": { "type": "object" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source", "title", "downloadUrl", "rightsUri", "rightsEvidence", "sha256", "split"],
+        "properties": {
+          "id": { "type": "string" },
+          "source": { "enum": ["oapen", "standardebooks"] },
+          "title": { "type": "string" },
+          "downloadUrl": { "type": "string", "format": "uri" },
+          "rightsUri": { "type": "string", "format": "uri" },
+          "rightsEvidence": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "split": { "enum": ["discovery", "development", "locked-test", "control"] }
+        }
+      }
+    }
+  }
+}
