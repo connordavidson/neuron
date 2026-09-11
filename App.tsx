@@ -12,8 +12,9 @@ import { sortLibrary } from './src/lib/libraryOrder';
 import { buildReadingOffsets, summaryAtPosition } from './src/lib/readingPosition';
 import {
   PARAGRAPH_PARSER_VERSION,
-  paragraphizePagesWithMetadata,
+  paragraphizeWithTokenizer,
 } from './src/lib/paragraphize';
+import { sentenceSpans } from './src/lib/sentences';
 import {
   deleteBookData,
   loadBookContent,
@@ -40,6 +41,10 @@ type ActiveBook = {
 type PDFSource = {
   uri: string;
   name?: string;
+};
+
+type PDFTextExtractorModuleWithTokenizer = typeof PDFTextExtractor & {
+  sentenceBoundaries?: (texts: string[]) => Promise<number[][]>;
 };
 
 const initialPreferences: ReaderPreferences = { fontSize: 24, theme: 'paper' };
@@ -157,7 +162,19 @@ export default function App() {
 
         const extraction = await PDFTextExtractor.extract(destination.uri);
         const sourceChapters = detectSourceChapters(extraction.pages, extraction.outlines, extraction.pageLineFonts);
-        const paragraphRecords = paragraphizePagesWithMetadata(extraction.pages, sourceChapters);
+        const paragraphRecords = await paragraphizeWithTokenizer(extraction.pages, sourceChapters,
+          async (texts) => {
+            // Physical phones can briefly run an older development binary while
+            // the JS bundle has already refreshed. Fall back locally until the
+            // native Natural Language method is available.
+            try {
+              const native = (PDFTextExtractor as PDFTextExtractorModuleWithTokenizer).sentenceBoundaries;
+              if (typeof native === 'function') return await native.call(PDFTextExtractor, texts);
+            } catch {
+              // Use the same guarded parser below when the old binary throws.
+            }
+            return texts.map((text) => sentenceSpans(text).map((span) => span.start + span.text.length));
+          });
         const paragraphs = paragraphRecords.map(({ text }) => text);
         if (!paragraphs.length) {
           throw new Error('This PDF has no readable text. Try running OCR on it first.');

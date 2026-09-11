@@ -1,10 +1,12 @@
+import type { SourceChapter } from './bookStructure';
+import { sentenceSpans } from './sentences';
+export { splitSentences } from './sentences';
 const PAGE_NUMBER = /^(?:page\s+)?\d{1,5}(?:\s+(?:of|\/)\s*\d{1,5})?$/i;
-const TERMINAL_CHARACTERS = new Set(['.', '!', '?', '…']);
 const SENTENCES_PER_READING_PAGE = 2;
 
 // Records the import algorithm. Opening a saved book must never replace its
 // content or move its bookmark as a side effect of a version change.
-export const PARAGRAPH_PARSER_VERSION = 4;
+export const PARAGRAPH_PARSER_VERSION = 5;
 
 export type ParagraphRecord = {
   pageIndex: number;
@@ -16,7 +18,9 @@ export function paragraphizePages(pages: string[]): string[] {
   return paragraphizePagesWithMetadata(pages).map(({ text }) => text);
 }
 
-export function paragraphizePagesWithMetadata(pages: string[], chapters: SourceChapter[] = []): ParagraphRecord[] {
+type Passage = { text: string; heading?: string; pages: Array<{ start: number; pageIndex: number }> };
+
+function preparePassages(pages: string[], chapters: SourceChapter[]): Passage[] {
   const normalizedPages = normalizePageSequence(pages.map(normalizePage));
   const repeatedEdges = findRepeatedPageFurniture(normalizedPages);
   const blocks: Array<{ pageIndex: number; text: string; chapter?: string }> = [];
@@ -41,25 +45,13 @@ export function paragraphizePagesWithMetadata(pages: string[], chapters: SourceC
       .map((text) => ({ pageIndex, text })));
   });
 
-  const result: ParagraphRecord[] = [];
-  const sentenceBuffer: Array<{ pageIndex: number; text: string; heading?: string }> = [];
+  const result: Passage[] = [];
+  let passage: Passage = { text: '', pages: [] };
   let headingPrefix = '';
-
-  const flushSentences = () => {
-    if (!sentenceBuffer.length) return;
-    result.push({
-      pageIndex: sentenceBuffer[0]?.pageIndex ?? 0,
-      text: sentenceBuffer.map(({ text }) => text).join(' '),
-      heading: sentenceBuffer.find(({ heading }) => heading)?.heading,
-    });
-    sentenceBuffer.length = 0;
-  };
-
   for (const block of blocks) {
     if (block.chapter) {
-      // A chapter starts on a fresh card. Its final unpaired sentence stays in
-      // that chapter, rather than being joined to the opening of the next one.
-      flushSentences();
+      if (passage.text) result.push(passage);
+      passage = { text: '', pages: [] };
       headingPrefix = block.chapter;
       continue;
     }
@@ -68,16 +60,41 @@ export function paragraphizePagesWithMetadata(pages: string[], chapters: SourceC
       continue;
     }
 
-    for (const sentence of splitSentences(block.text)) {
-      const heading = headingPrefix || undefined;
-      headingPrefix = '';
-      sentenceBuffer.push({ heading, pageIndex: block.pageIndex, text: sentence });
-      if (sentenceBuffer.length === SENTENCES_PER_READING_PAGE) flushSentences();
-    }
+    if (!passage.text) passage.heading = headingPrefix || undefined;
+    headingPrefix = '';
+    if (passage.text) passage.text += ' ';
+    passage.pages.push({ start: passage.text.length, pageIndex: block.pageIndex });
+    passage.text += block.text;
   }
-
-  flushSentences();
+  if (passage.text) result.push(passage);
   return result;
+}
+
+function cardsFromPassages(passages: Passage[], boundaries?: number[][]): ParagraphRecord[] {
+  return passages.flatMap((passage, passageIndex) => {
+    const sentences = sentenceSpans(passage.text, boundaries?.[passageIndex]);
+    const result: ParagraphRecord[] = [];
+    let sourceIndex = 0;
+    for (let i = 0; i < sentences.length; i += SENTENCES_PER_READING_PAGE) {
+      const first = sentences[i]!;
+      while (sourceIndex + 1 < passage.pages.length && passage.pages[sourceIndex + 1]!.start <= first.start) sourceIndex++;
+      result.push({ text: sentences.slice(i, i + SENTENCES_PER_READING_PAGE).map(s => s.text).join(' '),
+        pageIndex: passage.pages[sourceIndex]?.pageIndex ?? 0, heading: i === 0 ? passage.heading : undefined });
+    }
+    return result;
+  });
+}
+
+export function paragraphizePagesWithMetadata(pages: string[], chapters: SourceChapter[] = []): ParagraphRecord[] {
+  return cardsFromPassages(preparePassages(pages, chapters));
+}
+
+export async function paragraphizeWithTokenizer(pages: string[], chapters: SourceChapter[],
+  tokenize: (texts: string[]) => Promise<number[][]>): Promise<ParagraphRecord[]> {
+  const passages = preparePassages(pages, chapters);
+  const boundaries = await tokenize(passages.map(passage => passage.text));
+  if (boundaries.length !== passages.length) throw new Error('Sentence analysis returned incomplete results. Please try importing again.');
+  return cardsFromPassages(passages, boundaries);
 }
 
 function normalizePage(text: string): string {
@@ -141,7 +158,7 @@ function paragraphizePage(page: string, repeatedEdges: Set<string>): string[] {
 
   const flush = () => {
     const value = normalizeWhitespace(buffer);
-    if (value.length >= 2 && !isPageNumber(value)) {
+    if (value.length > 0 && !isPageNumber(value)) {
       result.push(value);
     }
     buffer = '';
@@ -170,53 +187,6 @@ function paragraphizePage(page: string, repeatedEdges: Set<string>): string[] {
 
   flush();
   return result;
-}
-
-export function splitSentences(text: string): string[] {
-  const sentences: string[] = [];
-  let start = 0;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    if (character && isSentenceBoundary(text, index)) {
-      let end = index + 1;
-      while (end < text.length && /["'”’»）)\]}]/u.test(text[end] ?? '')) end += 1;
-      const sentence = text.slice(start, end).trim();
-      if (sentence) sentences.push(sentence);
-      start = end;
-      index = end - 1;
-    }
-  }
-
-  const remainder = text.slice(start).trim();
-  if (remainder) sentences.push(remainder);
-  return sentences;
-}
-
-function isSentenceBoundary(text: string, index: number): boolean {
-  const character = text[index];
-  if (!character || !TERMINAL_CHARACTERS.has(character)) return false;
-
-  let nextIndex = index + 1;
-  while (nextIndex < text.length && /["'”’»）)\]}]/u.test(text[nextIndex] ?? '')) {
-    nextIndex += 1;
-  }
-  const nextCharacter = text[nextIndex];
-  if (nextCharacter && !/\s/.test(nextCharacter)) return false;
-
-  if (character === '.') {
-    const previous = text[index - 1] ?? '';
-    const nextNonSpace = text.slice(nextIndex).match(/^\s*([A-Za-z])/u)?.[1] ?? '';
-    if (/\d/.test(previous) && /\d/.test(nextNonSpace)) return false;
-
-    const prefix = text.slice(0, index + 1);
-    const word = prefix.match(/([A-Za-z]{1,8})\.$/u)?.[1]?.toLocaleLowerCase() ?? '';
-    if (['mr', 'mrs', 'ms', 'dr', 'prof', 'sr', 'jr', 'st', 'vs', 'etc', 'e.g', 'i.e'].includes(word)) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 // Repair the old boundary bug in already-imported books without changing page
@@ -283,8 +253,7 @@ function isPageNumber(line: string): boolean {
 }
 
 function endsWithTerminalPunctuation(line: string): boolean {
-  const lastCharacter = line.at(-1);
-  return lastCharacter ? TERMINAL_CHARACTERS.has(lastCharacter) : false;
+  return /[.!?…。！？]["'”’»）)\]}]*$/u.test(line);
 }
 
 function looksLikeHeading(line: string): boolean {
@@ -306,4 +275,3 @@ function looksLikeHeading(line: string): boolean {
 
   return isAllCaps || capitalizedWords === words.length;
 }
-import type { SourceChapter } from './bookStructure';

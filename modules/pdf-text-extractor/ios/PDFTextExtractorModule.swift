@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import PDFKit
 import UIKit
+import NaturalLanguage
 
 struct PDFExtractionResult: Record {
   @Field var title: String = ""
@@ -18,6 +19,17 @@ struct PDFOutlineItem: Record {
 public class PDFTextExtractorModule: Module {
   public func definition() -> ModuleDefinition {
     Name("PDFTextExtractor")
+
+    AsyncFunction("sentenceBoundaries") { (texts: [String]) -> [[Int]] in
+      texts.map { text in
+        // A new tokenizer per passage keeps all access on this invocation's queue.
+        let tokenizer = NLTokenizer(unit: .sentence)
+        tokenizer.string = text
+        return tokenizer.tokens(for: text.startIndex..<text.endIndex).map { range in
+          NSMaxRange(NSRange(range, in: text))
+        }
+      }
+    }
 
     AsyncFunction("extract") { (uri: String) throws -> PDFExtractionResult in
       guard let url = URL(string: uri), url.isFileURL else {

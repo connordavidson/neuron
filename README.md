@@ -17,6 +17,7 @@ neuron is a new type of ebook reader. The current app, FlowReader, is a React Na
 - Includes paper, sepia, and night themes plus adjustable text sizing
 - Stores and searches a local book library
 - Sorts books by most recently read
+- Swipe left on a book to reveal Delete; removal still requires confirmation
 - Keeps closing quotation marks attached to their sentences, including repairs for older imports without shifting bookmarks
 
 ## Run on iOS
@@ -35,7 +36,9 @@ For a physical iPhone, connect and trust it, enable Developer Mode, then run `np
 
 ## PDF support
 
-The importer requires a PDF with a selectable text layer. Image-only scans need OCR before import. PDF text often contains visual line breaks instead of semantic paragraphs, so FlowReader repairs the text, detects sentence boundaries across PDF page breaks, and groups each complete reading page into exactly two sentences. A final leftover sentence may stand alone.
+The importer requires a PDF with a selectable text layer. Image-only scans need OCR before import. PDF text often contains visual line breaks instead of semantic paragraphs. FlowReader joins continuous text within each chapter, uses Apple's on-device Natural Language sentence tokenizer, and filters its boundaries for PDF ellipses, closing quotes, dialogue attribution, and initials. Ellipses such as `...`, `. . .`, and `…` are treated as a unit, never as individual sentences. Each complete reading page pairs two detected sentences; a final leftover sentence may stand alone. Ambiguous punctuation can still require interpretation.
+
+Sentence parsing changes apply to new imports. Existing books retain their original card layout and bookmarks; reimport a PDF to apply the new sentence splitting to it.
 
 All reading pages use the selected font size. Exceptionally long sentence pairs can scroll within their page. The swipe indicator stays at the bottom of the reader. A chapter's final unpaired sentence also stands alone so the next chapter starts on a fresh card.
 

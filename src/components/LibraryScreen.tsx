@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
+  PanResponder,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -13,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { colors } from '../theme';
 import { displayedProgress } from '../lib/readingPosition';
+import { DELETE_REVEAL_WIDTH, isHorizontalSwipe, shouldRevealDelete, swipeOffset } from '../lib/swipeBook';
 import type { BookSummary } from '../types';
 
 type Props = {
@@ -35,6 +38,7 @@ export function LibraryScreen({
   onDeleteBook,
 }: Props) {
   const [query, setQuery] = useState('');
+  const [swipedBookID, setSwipedBookID] = useState<string | null>(null);
   const filteredBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
     if (!normalizedQuery) return books;
@@ -96,6 +100,7 @@ export function LibraryScreen({
           <EmptyLibrary onImport={onImport} />
         ) : (
           <FlatList
+            onScrollBeginDrag={() => setSwipedBookID(null)}
             contentContainerStyle={styles.listContent}
             data={filteredBooks}
             keyExtractor={(book) => book.id}
@@ -108,8 +113,10 @@ export function LibraryScreen({
             renderItem={({ item }) => (
               <BookCard
                 book={item}
+                isRevealed={swipedBookID === item.id}
+                onReveal={(open) => setSwipedBookID(open ? item.id : null)}
                 isOpening={openingBookID === item.id}
-                onDelete={() => onDeleteBook(item)}
+                onDelete={() => { setSwipedBookID(null); onDeleteBook(item); }}
                 onOpen={() => onOpenBook(item)}
               />
             )}
@@ -155,14 +162,45 @@ function EmptyLibrary({ onImport }: { onImport: () => void }) {
 function BookCard({
   book,
   isOpening,
+  isRevealed,
+  onReveal,
   onOpen,
   onDelete,
 }: {
   book: BookSummary;
   isOpening: boolean;
+  isRevealed: boolean;
+  onReveal: (open: boolean) => void;
   onOpen: () => void;
   onDelete: () => void;
 }) {
+  const translation = useRef(new Animated.Value(0)).current;
+  const gestureStart = useRef(0);
+  const moved = useRef(false);
+  const current = useRef({ isRevealed, onReveal, isOpening });
+  current.current = { isRevealed, onReveal, isOpening };
+  const settle = (open: boolean) => {
+    Animated.spring(translation, { toValue: open ? -DELETE_REVEAL_WIDTH : 0,
+      useNativeDriver: true, overshootClamping: true, speed: 24, bounciness: 0 }).start();
+  };
+  useEffect(() => { settle(isRevealed); }, [isRevealed, translation]);
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) => !current.current.isOpening && isHorizontalSwipe(gesture.dx, gesture.dy),
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => !current.current.isOpening && isHorizontalSwipe(gesture.dx, gesture.dy),
+    onPanResponderGrant: () => {
+      moved.current = true;
+      translation.stopAnimation();
+      gestureStart.current = current.current.isRevealed ? -DELETE_REVEAL_WIDTH : 0;
+    },
+    onPanResponderMove: (_event, gesture) => translation.setValue(swipeOffset(gestureStart.current, gesture.dx)),
+    onPanResponderRelease: (_event, gesture) => {
+      const open = shouldRevealDelete(swipeOffset(gestureStart.current, gesture.dx), gesture.vx);
+      current.current.onReveal(open);
+      settle(open);
+    },
+    onPanResponderTerminate: () => { current.current.onReveal(false); settle(false); },
+    onPanResponderTerminationRequest: () => true,
+  }), [translation]);
   const readingStart = Math.max(0, Math.min(book.readingStart ?? 0, book.paragraphCount - 1));
   const readingPageCount = Math.max(1, book.paragraphCount - readingStart);
   const currentPage = Math.max(
@@ -172,11 +210,26 @@ function BookCard({
   const { fraction: progress, label: progressLabel } = displayedProgress(book);
 
   return (
+    <View style={styles.swipeShell}>
+      <Pressable
+        accessibilityLabel={`Delete ${book.title}`}
+        accessibilityRole="button"
+        accessibilityElementsHidden={!isRevealed}
+        importantForAccessibility={isRevealed ? 'yes' : 'no-hide-descendants'}
+        pointerEvents={isRevealed ? 'auto' : 'none'}
+        onPress={onDelete}
+        style={styles.deleteAction}
+      ><Text style={styles.deleteLabel}>Delete</Text></Pressable>
+      <Animated.View collapsable={false} {...panResponder.panHandlers} style={{ transform: [{ translateX: translation }] }}>
     <Pressable
-      accessibilityHint="Opens the paragraph reader"
+      accessibilityHint="Opens the reader. Swipe left to reveal Delete."
       accessibilityLabel={`${book.title}, ${progressLabel}`}
       accessibilityRole="button"
-      onPress={onOpen}
+      accessibilityActions={[{ name: 'delete', label: 'Delete book' }]}
+      onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'delete') onDelete(); }}
+      disabled={isOpening}
+      onPressIn={() => { moved.current = false; }}
+      onPress={() => { if (moved.current) return; if (isRevealed) onReveal(false); else onOpen(); }}
       style={({ pressed }) => [styles.bookCard, pressed && styles.cardPressed]}
     >
       <View style={styles.cover}>
@@ -200,23 +253,10 @@ function BookCard({
         </View>
       </View>
 
-      {isOpening ? (
-        <ActivityIndicator color={colors.brand} />
-      ) : (
-        <Pressable
-          accessibilityLabel={`Delete ${book.title}`}
-          accessibilityRole="button"
-          hitSlop={10}
-          onPress={(event) => {
-            event.stopPropagation();
-            onDelete();
-          }}
-          style={({ pressed }) => [styles.moreButton, pressed && styles.moreButtonPressed]}
-        >
-          <Text style={styles.moreGlyph}>•••</Text>
-        </Pressable>
-      )}
+      {isOpening ? <ActivityIndicator color={colors.brand} /> : null}
     </Pressable>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -409,15 +449,15 @@ const styles = StyleSheet.create({
   },
   progressFill: { backgroundColor: colors.brand, borderRadius: 3, height: '100%' },
   progressLabel: { color: colors.muted, fontSize: 11, minWidth: 59, textAlign: 'right' },
-  moreButton: {
+  swipeShell: { borderRadius: 20, overflow: 'hidden' },
+  deleteAction: {
     alignItems: 'center',
-    borderRadius: 14,
-    height: 38,
+    backgroundColor: '#C93434',
+    position: 'absolute', top: 0, right: 0, bottom: 0,
     justifyContent: 'center',
-    width: 34,
+    width: DELETE_REVEAL_WIDTH,
   },
-  moreButtonPressed: { backgroundColor: colors.brandSoft },
-  moreGlyph: { color: colors.muted, fontSize: 14, letterSpacing: 1, transform: [{ rotate: '90deg' }] },
+  deleteLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   overlay: {
     alignItems: 'center',
     backgroundColor: 'rgba(19, 16, 28, 0.25)',
