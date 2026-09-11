@@ -66,6 +66,11 @@ export function summaryAtPosition(
     currentSourcePage: content.paragraphPages?.[index] != null
       ? content.paragraphPages[index]! + 1
       : undefined,
+    currentAnchor: content.readingUnits?.[index]?.anchor ?? book.currentAnchor,
+    parserVersion: content.parserVersion ?? book.parserVersion,
+    parseConfidence: content.sections?.length
+      ? content.sections.reduce((sum, section) => sum + section.confidence, 0) / content.sections.length
+      : book.parseConfidence,
   };
 }
 

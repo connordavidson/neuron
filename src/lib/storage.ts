@@ -37,19 +37,33 @@ export async function persistLibrary(books: BookSummary[]): Promise<void> {
 }
 
 export async function storeBook(book: StoredBook): Promise<BookSummary> {
-  const { pdfUri, paragraphs, chapters, chapterVersion, paragraphPages, parserVersion: _parserVersion, ...summary } = book;
+  const {
+    pdfUri, paragraphs, chapters, chapterVersion, paragraphPages, parserVersion,
+    metadata, sections, blocks, readingUnits, supplements, diagnostics, layoutRevision, ...summary
+  } = book;
   const readingStart = book.readingStart ?? 0;
   const content: BookContent = {
     chapters,
     chapterVersion,
-    parserVersion: book.parserVersion ?? PARAGRAPH_PARSER_VERSION,
+    parserVersion: parserVersion ?? PARAGRAPH_PARSER_VERSION,
     pdfUri,
     paragraphs,
     paragraphPages,
     readingStart,
+    metadata,
+    sections,
+    blocks,
+    readingUnits,
+    supplements,
+    diagnostics,
+    layoutRevision,
   };
-  await AsyncStorage.setItem(bookContentKey(book.id), JSON.stringify(content));
-  return summary;
+  await storeBookContent(book.id, content);
+  return { ...summary, parserVersion: content.parserVersion };
+}
+
+export async function storeBookContent(id: string, content: BookContent): Promise<void> {
+  await AsyncStorage.setItem(bookContentKey(id), JSON.stringify(content));
 }
 
 export async function loadBookContent(id: string): Promise<BookContent | null> {
@@ -67,7 +81,7 @@ export async function loadBookContent(id: string): Promise<BookContent | null> {
     const storedReadingStart =
       typeof parsed.readingStart === 'number' ? parsed.readingStart : undefined;
     const detected = storedChapters && storedReadingStart != null ? null : detectBookStructure(paragraphs);
-    return {
+    const content: BookContent = {
       chapters: Array.isArray(chapterMetadata.chapters) ? chapterMetadata.chapters : storedChapters ?? detected?.chapters ?? [],
       chapterVersion: chapterMetadata.chapterVersion ?? parsed.chapterVersion,
       parserVersion:
@@ -78,6 +92,14 @@ export async function loadBookContent(id: string): Promise<BookContent | null> {
         ? parsed.paragraphPages : undefined,
       readingStart: storedReadingStart ?? detected?.readingStart ?? 0,
     };
+    if (parsed.metadata) content.metadata = parsed.metadata;
+    if (Array.isArray(parsed.sections)) content.sections = parsed.sections;
+    if (Array.isArray(parsed.blocks)) content.blocks = parsed.blocks;
+    if (Array.isArray(parsed.readingUnits) && parsed.readingUnits.length === paragraphs.length) content.readingUnits = parsed.readingUnits;
+    if (Array.isArray(parsed.supplements)) content.supplements = parsed.supplements;
+    if (parsed.diagnostics) content.diagnostics = parsed.diagnostics;
+    if (typeof parsed.layoutRevision === 'string') content.layoutRevision = parsed.layoutRevision;
+    return content;
   } catch {
     return null;
   }
