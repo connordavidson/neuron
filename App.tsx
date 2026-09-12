@@ -6,14 +6,16 @@ import { Directory, File, Paths } from 'expo-file-system';
 import PDFTextExtractor from './modules/pdf-text-extractor/src/PDFTextExtractorModule';
 import { LibraryScreen } from './src/components/LibraryScreen';
 import { ReaderScreen } from './src/components/ReaderScreen';
-import { CHAPTER_VERSION, detectBookStructure, detectSourceChapters } from './src/lib/bookStructure';
-import { inferBookTitle } from './src/lib/bookTitle';
+import { CHAPTER_VERSION, detectBookStructure } from './src/lib/bookStructure';
+import {
+  CONTENT_PARSER_VERSION,
+  parseEbook,
+  remapReadingPosition,
+  sourceAnchorForLegacy,
+} from './src/lib/contentParser';
 import { sortLibrary } from './src/lib/libraryOrder';
 import { buildReadingOffsets, summaryAtPosition } from './src/lib/readingPosition';
-import {
-  PARAGRAPH_PARSER_VERSION,
-  paragraphizePagesWithMetadata,
-} from './src/lib/paragraphize';
+import { sentenceSpans } from './src/lib/sentences';
 import {
   deleteBookData,
   loadBookContent,
@@ -22,6 +24,7 @@ import {
   persistLibrary,
   persistPreferences,
   storeBook,
+  storeBookContent,
   storeChapterMetadata,
 } from './src/lib/storage';
 import type {
@@ -42,6 +45,10 @@ type PDFSource = {
   name?: string;
 };
 
+type PDFTextExtractorModuleWithTokenizer = typeof PDFTextExtractor & {
+  sentenceBoundaries?: (texts: string[]) => Promise<number[][]>;
+};
+
 const initialPreferences: ReaderPreferences = { fontSize: 24, theme: 'paper' };
 
 export default function App() {
@@ -51,6 +58,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [openingBookID, setOpeningBookID] = useState<string | null>(null);
+  const [improvingBookID, setImprovingBookID] = useState<string | null>(null);
   const handledIncomingURLs = useRef(new Set<string>());
   const booksRef = useRef<BookSummary[]>([]);
   const activeBookRef = useRef<ActiveBook | null>(null);
@@ -156,39 +164,34 @@ export default function App() {
         }
 
         const extraction = await PDFTextExtractor.extract(destination.uri);
-        const sourceChapters = detectSourceChapters(extraction.pages, extraction.outlines, extraction.pageLineFonts);
-        const paragraphRecords = paragraphizePagesWithMetadata(extraction.pages, sourceChapters);
-        const paragraphs = paragraphRecords.map(({ text }) => text);
-        if (!paragraphs.length) {
+        const originalFileName = source.name?.trim() || fileNameFromURI(source.uri);
+        const parsed = await parseEbook(extraction, originalFileName, tokenizeOnDevice);
+        if (!parsed.paragraphs.length) {
           throw new Error('This PDF has no readable text. Try running OCR on it first.');
         }
 
-        const originalFileName = source.name?.trim() || fileNameFromURI(source.uri);
-        const title = inferBookTitle(extraction.title, originalFileName, extraction.pages);
-        const structure = detectBookStructure(paragraphs, {
-          sourceChapters,
-          sourcePages: extraction.pages,
-          chapterMarkers: paragraphRecords.flatMap(({ heading }, paragraphIndex) =>
-            heading ? [{ paragraphIndex, title: heading }] : [],
-          ),
-          outlines: extraction.outlines,
-          paragraphPages: paragraphRecords.map(({ pageIndex }) => pageIndex),
-        });
         const book: StoredBook = {
-          currentParagraph: structure.readingStart,
+          currentParagraph: parsed.readingStart,
           id,
           importedAt: new Date().toISOString(),
           lastReadAt: openAfterImport ? new Date().toISOString() : undefined,
           originalFileName,
-          paragraphCount: paragraphs.length,
-          paragraphs,
-          paragraphPages: paragraphRecords.map(({ pageIndex }) => pageIndex),
-          parserVersion: PARAGRAPH_PARSER_VERSION,
+          paragraphCount: parsed.paragraphs.length,
+          paragraphs: parsed.paragraphs,
+          paragraphPages: parsed.paragraphPages,
+          parserVersion: CONTENT_PARSER_VERSION,
           pdfUri: destination.uri,
-          chapters: structure.chapters,
+          chapters: parsed.chapters,
           chapterVersion: CHAPTER_VERSION,
-          readingStart: structure.readingStart,
-          title,
+          readingStart: parsed.readingStart,
+          title: parsed.metadata.title.value,
+          metadata: parsed.metadata,
+          sections: parsed.sections,
+          blocks: parsed.blocks,
+          readingUnits: parsed.readingUnits,
+          supplements: parsed.supplements,
+          diagnostics: parsed.diagnostics,
+          layoutRevision: createID(),
         };
 
         const offsets = buildReadingOffsets(book);
@@ -197,10 +200,17 @@ export default function App() {
           chapters: book.chapters,
           chapterVersion: CHAPTER_VERSION,
           pdfUri: book.pdfUri,
-          paragraphs,
+          paragraphs: book.paragraphs,
           paragraphPages: book.paragraphPages,
-          parserVersion: PARAGRAPH_PARSER_VERSION,
-          readingStart: structure.readingStart,
+          parserVersion: CONTENT_PARSER_VERSION,
+          readingStart: parsed.readingStart,
+          metadata: parsed.metadata,
+          sections: parsed.sections,
+          blocks: parsed.blocks,
+          readingUnits: parsed.readingUnits,
+          supplements: parsed.supplements,
+          diagnostics: parsed.diagnostics,
+          layoutRevision: book.layoutRevision,
         };
         contentCache.current.set(id, { content, offsets });
         saveLibrary([summary, ...booksRef.current]);
@@ -345,6 +355,61 @@ export default function App() {
     void persistPreferences(nextPreferences);
   }, []);
 
+  const improveParsing = useCallback(async () => {
+    const current = activeBookRef.current;
+    if (!current || improvingBookID) return;
+    setImprovingBookID(current.summary.id);
+    try {
+      const localPDF = new File(Paths.document, 'FlowReader', 'Books', `${current.summary.id}.pdf`);
+      const extraction = await PDFTextExtractor.extract(localPDF.exists ? localPDF.uri : current.content.pdfUri);
+      const parsed = await parseEbook(extraction, current.summary.originalFileName, tokenizeOnDevice);
+      if (!parsed.paragraphs.length) throw new Error('The new parser could not find readable prose in this PDF.');
+      const oldIndex = current.summary.currentParagraph;
+      const oldAnchor = current.summary.currentAnchor
+        ?? current.content.readingUnits?.[oldIndex]?.anchor
+        ?? sourceAnchorForLegacy(current.content.paragraphs[oldIndex] ?? '', current.content.paragraphPages?.[oldIndex] ?? 0);
+      const remapped = remapReadingPosition(oldAnchor, parsed.readingUnits);
+      if (remapped.confidence < 0.9) {
+        Alert.alert(
+          'Kept your current layout',
+          'The improved parser could not match your exact reading position with at least 90% confidence, so nothing was changed.',
+        );
+        return;
+      }
+      const content: BookContent = {
+        pdfUri: current.content.pdfUri,
+        paragraphs: parsed.paragraphs,
+        paragraphPages: parsed.paragraphPages,
+        chapters: parsed.chapters,
+        chapterVersion: CHAPTER_VERSION,
+        readingStart: parsed.readingStart,
+        parserVersion: CONTENT_PARSER_VERSION,
+        metadata: parsed.metadata,
+        sections: parsed.sections,
+        blocks: parsed.blocks,
+        readingUnits: parsed.readingUnits,
+        supplements: parsed.supplements,
+        diagnostics: parsed.diagnostics,
+        layoutRevision: createID(),
+      };
+      const offsets = buildReadingOffsets(content);
+      const summary = summaryAtPosition({
+        ...current.summary,
+        title: parsed.metadata.title.value,
+        parserVersion: CONTENT_PARSER_VERSION,
+      }, content, offsets, remapped.index);
+      await storeBookContent(summary.id, content);
+      contentCache.current.set(summary.id, { content, offsets });
+      saveLibrary(booksRef.current.map((book) => book.id === summary.id ? summary : book));
+      showBook({ summary, content, offsets });
+      Alert.alert('Parsing improved', 'The book was reprocessed and your reading position was preserved.');
+    } catch (error) {
+      Alert.alert('Couldn’t improve parsing', friendlyErrorMessage(error));
+    } finally {
+      setImprovingBookID(null);
+    }
+  }, [improvingBookID, saveLibrary, showBook]);
+
   const closeReader = useCallback(
     (paragraph: number) => {
       const current = activeBookRef.current;
@@ -374,9 +439,11 @@ export default function App() {
       >
         {activeBook ? (
           <ReaderScreen
-            key={activeBook.summary.id}
+            key={`${activeBook.summary.id}:${activeBook.content.layoutRevision ?? 'legacy'}`}
             book={activeBook.summary}
             content={activeBook.content}
+            isImprovingParsing={improvingBookID === activeBook.summary.id}
+            onImproveParsing={improveParsing}
             updatingChapters={updatingChapterIDs.includes(activeBook.summary.id)}
             onClose={closeReader}
             onPreferencesChange={updatePreferences}
@@ -406,4 +473,16 @@ function fileNameFromURI(uri: string): string {
 function friendlyErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'Something unexpected happened. Please try another PDF.';
+}
+
+async function tokenizeOnDevice(texts: string[]): Promise<number[][]> {
+  // Physical phones can briefly run an older development binary while the JS
+  // bundle has already refreshed. Keep imports functional until it is rebuilt.
+  try {
+    const native = (PDFTextExtractor as PDFTextExtractorModuleWithTokenizer).sentenceBoundaries;
+    if (typeof native === 'function') return await native.call(PDFTextExtractor, texts);
+  } catch {
+    // Apply the same deterministic boundary protections locally.
+  }
+  return texts.map((text) => sentenceSpans(text).map((span) => span.start + span.text.length));
 }

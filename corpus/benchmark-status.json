@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "parserVersion": 7,
+  "headlineLockedTest": {
+    "status": "not-run",
+    "expectedBooks": 100,
+    "scoredBooks": 0,
+    "promotionAllowed": false,
+    "reason": "The licensed locked-test set must be downloaded and independently annotated in the private benchmark environment."
+  },
+  "automatedFixtureChecks": {
+    "status": "passing",
+    "pythonTests": 8,
+    "nodeTests": 44
+  },
+  "licensedDiscoveryCheck": {
+    "status": "passing",
+    "source": "OAPEN",
+    "documents": 50,
+    "pages": 14616,
+    "readingUnits": 89147,
+    "nonemptyPublisherLabels": 16,
+    "booksWithOutlines": 47,
+    "manifestSha256": "5c336929124eed53b56224667db65ea4e7cdfad46505177240f26a19d4a0dd6e",
+    "parserCommit": "2fbad63",
+    "parserSourceSha256": "ef25a99ab242b7b57c6a126d801b85c053d2c5e5cf048703645f649be19ae1d0",
+    "baselineCommit": "78d3ad7",
+    "unlabelledProxies": {
+      "catalogTitleAgreement": { "before": 6, "after": 49, "denominator": 50 },
+      "booksWithoutNavigation": { "before": 1, "after": 0 },
+      "emptyBooks": { "before": 0, "after": 0 },
+      "readingWords": { "before": 4230004, "after": 4455739 },
+      "cardsOver250Words": { "before": 210, "after": 227 },
+      "invalidDeclaredSentenceCounts": { "before": 0, "after": 0 }
+    },
+    "notes": "Extraction and parser execution succeeded for all 50 discovery books. These are unlabelled diagnostics, not held-out accuracy. Oversized cards increased and require review. No physical-device validation or release promotion is claimed. Licensed inputs and book-level derived artifacts remain ignored and private."
+  }
+}

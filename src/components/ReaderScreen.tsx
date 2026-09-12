@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   AppState,
   FlatList,
@@ -24,8 +25,10 @@ type Props = {
   book: BookSummary;
   content: BookContent;
   updatingChapters?: boolean;
+  isImprovingParsing?: boolean;
   preferences: ReaderPreferences;
   onClose: (paragraph: number) => void;
+  onImproveParsing?: () => void;
   onPreferencesChange: (preferences: ReaderPreferences) => void;
   onProgressChange: (paragraph: number) => void;
 };
@@ -34,8 +37,10 @@ export function ReaderScreen({
   book,
   content,
   updatingChapters = false,
+  isImprovingParsing = false,
   preferences,
   onClose,
+  onImproveParsing,
   onPreferencesChange,
   onProgressChange,
 }: Props) {
@@ -46,6 +51,7 @@ export function ReaderScreen({
   const [currentParagraph, setCurrentParagraph] = useState(initialParagraph);
   const [showSettings, setShowSettings] = useState(false);
   const [showChapters, setShowChapters] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
   const chromeOpacity = useRef(new Animated.Value(1)).current;
   const listRef = useRef<FlatList<string>>(null);
@@ -122,7 +128,12 @@ export function ReaderScreen({
     [],
   );
   const currentChapter = useMemo(() => currentChapterAt(content.chapters, currentParagraph), [content.chapters, currentParagraph]);
-  const navigationStart = content.chapters.find((chapter) => chapter.kind !== 'frontMatter' && chapter.kind !== 'backMatter')?.paragraphIndex ?? content.readingStart;
+  const currentUnit = content.readingUnits?.[currentParagraph];
+  const currentSupplements = useMemo(() => {
+    const ids = new Set(currentUnit?.supplementIds ?? []);
+    return content.supplements?.filter(({ id }) => ids.has(id)) ?? [];
+  }, [content.supplements, currentUnit]);
+  const navigationStart = content.readingStart;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: activeTheme.background }]}>
@@ -170,10 +181,6 @@ export function ReaderScreen({
           />
         ) : null}
 
-        <View pointerEvents="none" accessible={false} style={styles.pageFooter}>
-          <View style={[styles.swipeCue, { backgroundColor: activeTheme.secondary + '55' }]} />
-        </View>
-
         <Animated.View
           pointerEvents={chromeVisible ? 'auto' : 'none'}
           style={[styles.topChrome, { opacity: chromeOpacity }]}
@@ -204,6 +211,26 @@ export function ReaderScreen({
           </View>
 
           <View style={styles.chromeActions}>
+            {currentSupplements.length ? (
+              <Pressable
+                accessibilityLabel={`Open ${currentSupplements.length} contextual notes`}
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => {
+                  setShowContext((current) => !current);
+                  setShowChapters(false);
+                  setShowSettings(false);
+                  setChrome(true);
+                }}
+                style={({ pressed }) => [
+                  styles.roundControl,
+                  { backgroundColor: activeTheme.foreground + '12' },
+                  pressed && styles.controlPressed,
+                ]}
+              >
+                <Text style={[styles.contextGlyph, { color: activeTheme.foreground }]}>†</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityLabel="Open chapters"
               accessibilityRole="button"
@@ -211,6 +238,7 @@ export function ReaderScreen({
               onPress={() => {
                 setShowChapters((current) => !current);
                 setShowSettings(false);
+                setShowContext(false);
                 setChrome(true);
               }}
               style={({ pressed }) => [
@@ -228,6 +256,7 @@ export function ReaderScreen({
               onPress={() => {
                 setShowSettings((current) => !current);
                 setShowChapters(false);
+                setShowContext(false);
                 setChrome(true);
               }}
               style={({ pressed }) => [
@@ -277,7 +306,7 @@ export function ReaderScreen({
                     accessibilityState={{ selected: chapter === currentChapter }}
                     key={`${chapter.pageIndex ?? 0}-${chapter.paragraphIndex}-${chapter.title}`}
                     onPress={() => goToParagraph(chapter.paragraphIndex)}
-                    style={({ pressed }) => [styles.chapterRow,
+                    style={({ pressed }) => [styles.chapterRow, { marginLeft: Math.min(28, (chapter.level ?? 0) * 10) },
                       chapter === currentChapter && { backgroundColor: activeTheme.foreground + '0D' },
                       pressed && styles.controlPressed]}
                   >
@@ -293,6 +322,34 @@ export function ReaderScreen({
               ) : (
                 !updatingChapters && <Text style={[styles.noChapters, { color: activeTheme.secondary }]}>No reliable chapters found in this PDF</Text>
               )}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {showContext ? (
+          <View
+            style={[
+              styles.contextPanel,
+              {
+                backgroundColor: preferences.theme === 'night' ? '#1B1D24' : '#FFFFFF',
+                borderColor: activeTheme.secondary + '30',
+              },
+            ]}
+          >
+            <View style={styles.settingsHeader}>
+              <Text style={[styles.settingsTitle, { color: activeTheme.foreground }]}>Notes and context</Text>
+              <Pressable accessibilityLabel="Close notes" onPress={() => setShowContext(false)}>
+                <Text style={[styles.doneButton, { color: activeTheme.secondary }]}>Done</Text>
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.chapterList}>
+              {currentSupplements.map((supplement) => (
+                <View key={supplement.id} style={styles.supplementRow}>
+                  <Text style={[styles.supplementKind, { color: activeTheme.secondary }]}>{supplement.kind}</Text>
+                  <Text selectable style={[styles.supplementText, { color: activeTheme.foreground }]}>{supplement.text}</Text>
+                  <Text style={[styles.chapterMeta, { color: activeTheme.secondary }]}>PDF page {supplement.anchor.pageIndex + 1}</Text>
+                </View>
+              ))}
             </ScrollView>
           </View>
         ) : null}
@@ -388,6 +445,27 @@ export function ReaderScreen({
                 );
               })}
             </View>
+            {onImproveParsing ? (
+              <Pressable
+                accessibilityHint="Reprocesses this book and changes it only if your position can be preserved"
+                accessibilityLabel="Improve parsing"
+                accessibilityRole="button"
+                disabled={isImprovingParsing}
+                onPress={onImproveParsing}
+                style={({ pressed }) => [
+                  styles.improveButton,
+                  { borderColor: activeTheme.secondary + '40' },
+                  pressed && styles.controlPressed,
+                ]}
+              >
+                {isImprovingParsing ? <ActivityIndicator color={activeTheme.secondary} /> : (
+                  <View>
+                    <Text style={[styles.improveTitle, { color: activeTheme.foreground }]}>Improve parsing</Text>
+                    <Text style={[styles.improveBody, { color: activeTheme.secondary }]}>Re-detect structure without losing your place</Text>
+                  </View>
+                )}
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -463,14 +541,6 @@ const styles = StyleSheet.create({
     maxWidth: 700,
     width: '100%',
   },
-  pageFooter: {
-    alignItems: 'center',
-    bottom: 22,
-    left: 30,
-    position: 'absolute',
-    right: 30,
-  },
-  swipeCue: { borderRadius: 2, height: 3, width: 34 },
   topChrome: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -492,6 +562,7 @@ const styles = StyleSheet.create({
   backGlyph: { fontSize: 36, fontWeight: '300', lineHeight: 37, marginTop: -3 },
   settingsGlyph: { fontFamily: 'Georgia', fontSize: 15, fontWeight: '700' },
   chaptersGlyph: { fontSize: 18, fontWeight: '700' },
+  contextGlyph: { fontFamily: 'Georgia', fontSize: 21, fontWeight: '700' },
   chromeTitleBlock: { flex: 1, marginHorizontal: 12 },
   chromeTitle: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
   chromeChapter: { fontSize: 11, lineHeight: 15, fontWeight: '600', marginTop: 2, textAlign: 'center' },
@@ -515,6 +586,20 @@ const styles = StyleSheet.create({
     bottom: 16,
     left: 16,
     maxHeight: '72%',
+    padding: 20,
+    position: 'absolute',
+    right: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+  },
+  contextPanel: {
+    borderRadius: 24,
+    borderWidth: 1,
+    bottom: 16,
+    left: 16,
+    maxHeight: '66%',
     padding: 20,
     position: 'absolute',
     right: 16,
@@ -556,4 +641,10 @@ const styles = StyleSheet.create({
   },
   themeLetters: { fontFamily: 'Georgia', fontSize: 18, fontWeight: '700' },
   themeLabel: { fontSize: 11, fontWeight: '600' },
+  supplementRow: { borderBottomColor: '#E5E1E9', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13 },
+  supplementKind: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
+  supplementText: { fontFamily: 'Georgia', fontSize: 15, lineHeight: 22, marginTop: 5 },
+  improveButton: { borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 18, minHeight: 58, paddingHorizontal: 14 },
+  improveTitle: { fontSize: 14, fontWeight: '700' },
+  improveBody: { fontSize: 11, marginTop: 3 },
 });
