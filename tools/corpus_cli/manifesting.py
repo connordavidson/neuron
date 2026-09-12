@@ -22,6 +22,10 @@ def sync_corpus(config_path: Path, manifest_path: Path, refresh: bool = False, o
     target = oapen_limit if oapen_limit is not None else int(oapen_config["target"])
     controls_target = control_limit if control_limit is not None else int(config["standardEbooks"]["target"])
     candidates = discover_oapen(oapen_config, candidate_limit or max(target * 4, target + 50)) if target else []
+    # OAPEN's result order can contain long runs from one publisher. Reorder the
+    # complete metadata pool for publisher/subject novelty before any downloads
+    # so an interrupted or smoke-sized sync is still structurally diverse.
+    candidates = stratified_sample(candidates, len(candidates))
     validated: list[dict[str, Any]] = []
     batch_size = max(4, workers * 3)
     for offset in range(0, len(candidates), batch_size):

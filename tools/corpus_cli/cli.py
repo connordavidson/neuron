@@ -32,6 +32,8 @@ def parser() -> argparse.ArgumentParser:
     extract = commands.add_parser("extract", help="extract lossless structured document JSON")
     extract.add_argument("--id", action="append", dest="ids")
     extract.add_argument("--split", choices=["discovery", "development", "locked-test", "control"])
+    extract.add_argument("--workers", type=int, default=4)
+    extract.add_argument("--timeout", type=float, default=1800, help="maximum seconds per PDF before terminating its extraction worker")
 
     render = commands.add_parser("render", help="render PDFs for inspection and create Standard Ebooks controls")
     render.add_argument("--id", action="append", dest="ids")
@@ -44,6 +46,7 @@ def parser() -> argparse.ArgumentParser:
 
     analyze = commands.add_parser("analyze", help="summarize corpus structure and parser failure patterns")
     analyze.add_argument("--parse", action="store_true", help="run the current deterministic parser before analysis")
+    analyze.add_argument("--workers", type=int, default=4)
 
     evaluate = commands.add_parser("evaluate", help="score predictions against gold annotations")
     evaluate.add_argument("--split", default="locked-test", choices=["development", "locked-test", "control"])
@@ -67,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     manifest = require_manifest(manifest_path)
     if args.command == "extract":
         paths = selected_pdf_paths(manifest, corpus_root, args.ids, args.split)
-        outputs = extract_many(paths, corpus_root / "extracted")
+        outputs = extract_many(paths, corpus_root / "extracted", args.workers, args.timeout)
         print(f"Extracted {len(outputs)} PDFs to {corpus_root / 'extracted'}")
         return 0
     if args.command == "render":
@@ -89,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "analyze":
         predictions = corpus_root / "predictions"
         if args.parse:
-            run_predictions(corpus_root / "extracted", predictions)
+            run_predictions(corpus_root / "extracted", predictions, workers=args.workers)
         result = analyze_corpus(manifest_path, corpus_root / "extracted", predictions if predictions.exists() else None,
                                 corpus_root / "reports" / "private" / "analysis.json")
         print(json.dumps({key: result[key] for key in ("documents", "publishers", "subjects", "outlineCoverage")}, indent=2))

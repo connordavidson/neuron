@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+import subprocess
+import sys
 from typing import Any
 
 from .common import utc_now, write_json
@@ -18,6 +21,7 @@ def extract_pdf(pdf_path: Path) -> dict[str, Any]:
     structured_pages: list[dict[str, Any]] = []
     page_texts: list[str] = []
     page_line_fonts: list[list[float]] = []
+    warnings: list[str] = []
     with pdfplumber.open(pdf_path) as document:
         for page_index, page in enumerate(document.pages):
             lines = group_chars_into_lines(page.chars)
@@ -74,8 +78,9 @@ def extract_pdf(pdf_path: Path) -> dict[str, Any]:
                 "rotation": int(page.rotation or 0),
                 "text": text,
                 "spans": spans,
-                "links": extract_links(page),
+                "links": extract_pdf_links(reader, page_index, warnings),
             })
+            page.close()
     metadata = extract_metadata(reader)
     return {
         "schemaVersion": 1,
@@ -87,17 +92,37 @@ def extract_pdf(pdf_path: Path) -> dict[str, Any]:
         "structuredPages": structured_pages,
         "outlines": extract_outline(reader),
         "metadata": metadata,
+        "extractionWarnings": warnings,
     }
 
 
-def extract_many(input_paths: list[Path], output_dir: Path) -> list[Path]:
+def extract_many(input_paths: list[Path], output_dir: Path, workers: int = 4, timeout: float = 1800) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     outputs: list[Path] = []
-    for pdf_path in input_paths:
+
+    def extract_one(pdf_path: Path) -> Path:
         destination = output_dir / f"{pdf_path.stem}.json"
-        write_json(destination, extract_pdf(pdf_path))
-        outputs.append(destination)
-    return outputs
+        # A malformed object graph must not hold the entire corpus run hostage.
+        # Each worker owns a killable process and writes its JSON atomically.
+        subprocess.run([sys.executable, "-m", "tools.corpus_cli.extraction", str(pdf_path), str(destination)],
+                       check=True, timeout=timeout, capture_output=True, text=True)
+        return destination
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
+        futures = {executor.submit(extract_one, path): path for path in input_paths}
+        failures: list[str] = []
+        for completed, future in enumerate(as_completed(futures), 1):
+            source = futures[future]
+            try:
+                outputs.append(future.result())
+                print(f"[{completed}/{len(futures)}] extracted {source.name}")
+            except Exception as error:
+                detail = error.stderr[-2000:] if isinstance(error, subprocess.CalledProcessError) and error.stderr else str(error)
+                print(f"[{completed}/{len(futures)}] failed {source.name}: {detail}")
+                failures.append(source.name)
+    if failures:
+        raise RuntimeError(f"Extraction failed for {len(failures)} PDFs: {', '.join(failures[:8])}")
+    return sorted(outputs)
 
 
 def group_chars_into_lines(chars: list[dict[str, Any]], tolerance: float = 2.5) -> list[list[dict[str, Any]]]:
@@ -141,19 +166,45 @@ def group_chars_into_lines(chars: list[dict[str, Any]], tolerance: float = 2.5) 
     return result
 
 
-def extract_links(page: Any) -> list[dict[str, Any]]:
-    result: list[dict[str, Any]] = []
-    for link in getattr(page, "hyperlinks", []) or []:
-        result.append({
-            "bounds": {
-                "x": round(float(link.get("x0") or 0), 3),
-                "y": round(float(link.get("top") or 0), 3),
-                "width": round(float(link.get("x1") or 0) - float(link.get("x0") or 0), 3),
-                "height": round(float(link.get("bottom") or 0) - float(link.get("top") or 0), 3),
-            },
-            **({"url": link["uri"]} if link.get("uri") else {}),
-            **({"destinationPageIndex": int(link["page"]) - 1} if link.get("page") else {}),
-        })
+def extract_pdf_links(reader: Any, page_index: int, warnings: list[str]) -> list[dict[str, Any]]:
+    """Resolve only link fields, never the recursively linked annotation graph."""
+    page = reader.pages[page_index]
+    result = []
+    try:
+        annotations = page.get("/Annots", []) or []
+        if hasattr(annotations, "get_object"):
+            annotations = annotations.get_object()
+        if not isinstance(annotations, (list, tuple)):
+            raise ValueError("invalid annotation array")
+    except Exception as error:
+        warnings.append(f"Page {page_index + 1}: links skipped ({type(error).__name__}); page text retained")
+        return result
+    for reference in annotations:
+        try:
+            annotation = reference.get_object()
+            if annotation.get("/Subtype") != "/Link":
+                continue
+            rect = annotation.get("/Rect")
+            if not rect or len(rect) != 4:
+                continue
+            action = annotation.get("/A", {}) or {}
+            if hasattr(action, "get_object"):
+                action = action.get_object()
+            uri = action.get("/URI") if action.get("/S") == "/URI" else None
+            link = {"bounds": {"x": float(rect[0]), "y": float(page.mediabox.top) - float(rect[3]),
+                               "width": float(rect[2]) - float(rect[0]), "height": float(rect[3]) - float(rect[1])}}
+            if isinstance(uri, str):
+                link["url"] = uri
+            elif uri is not None:
+                warnings.append(f"Page {page_index + 1}: unreadable link URI; geometry and page text retained")
+            destination = annotation.get("/Dest") or action.get("/D")
+            if isinstance(destination, (list, tuple)) and destination:
+                target = reader.get_page_number(destination[0].get_object())
+                if target is not None and target >= 0:
+                    link["destinationPageIndex"] = target
+            result.append(link)
+        except Exception as error:
+            warnings.append(f"Page {page_index + 1}: link skipped ({type(error).__name__}); page text retained")
     return result
 
 
@@ -217,3 +268,9 @@ def color_value(value: Any) -> str | None:
     if len(channels) < 3:
         return None
     return "#" + "".join(f"{max(0, min(255, round(float(channel) * 255))):02X}" for channel in channels[:3])
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: python -m tools.corpus_cli.extraction SOURCE.pdf DESTINATION.json")
+    write_json(Path(sys.argv[2]), extract_pdf(Path(sys.argv[1])))

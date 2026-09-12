@@ -4,20 +4,67 @@ import json
 import tempfile
 import unittest
 import zipfile
+import subprocess
+from unittest.mock import patch
 from pathlib import Path
 
 from tools.corpus_cli.common import load_json, write_json
 from tools.corpus_cli.controls import extract_epub, render_control
 from tools.corpus_cli.evaluation import evaluate_corpus
-from tools.corpus_cli.extraction import extract_pdf
+from tools.corpus_cli.extraction import extract_pdf, extract_pdf_links, extract_many
 from tools.corpus_cli.licenses import canonical_rights_uri
 from tools.corpus_cli.manifesting import assign_splits
-from tools.corpus_cli.oapen import stratified_sample
+from tools.corpus_cli.oapen import candidate_from_item, stratified_sample
 from tools.corpus_cli.rendering import render_pdf
 from tools.corpus_cli.reporting import write_report
 
 
 class CorpusTests(unittest.TestCase):
+    def test_link_extraction_ignores_unrelated_recursive_annotations(self) -> None:
+        from pypdf import PdfWriter
+        from pypdf.generic import ArrayObject, DictionaryObject, NameObject, NumberObject, TextStringObject
+        writer = PdfWriter()
+        page = writer.add_blank_page(width=612, height=792)
+        link = DictionaryObject({NameObject('/Subtype'): NameObject('/Link'),
+            NameObject('/Rect'): ArrayObject([NumberObject(n) for n in [10, 20, 100, 40]]),
+            NameObject('/A'): DictionaryObject({NameObject('/S'): NameObject('/URI'),
+                NameObject('/URI'): TextStringObject('https://example.org/book')})})
+        link[NameObject('/Unrelated')] = link  # Must never walk this object graph.
+        page[NameObject('/Annots')] = ArrayObject([link, NumberObject(7)])
+        warnings = []
+        links = extract_pdf_links(writer, 0, warnings)
+        self.assertEqual(links[0]['url'], 'https://example.org/book')
+        self.assertEqual(links[0]['bounds']['y'], 752)
+        self.assertEqual(len(warnings), 1)
+
+    def test_extraction_workers_have_a_timeout_and_report_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch('tools.corpus_cli.extraction.subprocess.run') as run:
+            run.side_effect = subprocess.TimeoutExpired('extract', 1)
+            with self.assertRaisesRegex(RuntimeError, 'Extraction failed for 1 PDFs'):
+                extract_many([Path('slow.pdf')], Path(temporary), workers=1, timeout=1)
+            self.assertEqual(run.call_args.kwargs['timeout'], 1)
+
+    def test_oapen_discovery_rejects_chapter_level_records(self) -> None:
+        def item(publication_type: str) -> dict:
+            return {
+                "uuid": "source",
+                "metadata": [
+                    {"key": "dc.type", "value": publication_type},
+                    {"key": "dc.language", "value": "English"},
+                    {"key": "dc.title", "value": "A Whole Work"},
+                ],
+                "bitstreams": [{
+                    "mimeType": "application/pdf",
+                    "bundleName": "ORIGINAL",
+                    "retrieveLink": "/bitstream/book.pdf",
+                    "metadata": [{"key": "dc.rights.uri", "value": "https://creativecommons.org/licenses/by/4.0/"}],
+                }],
+            }
+
+        endpoint = "https://library.oapen.org/rest/search"
+        self.assertIsNone(candidate_from_item(item("chapter"), endpoint))
+        self.assertEqual(candidate_from_item(item("book"), endpoint)["publicationType"], "book")
+
     def test_license_allowlist_is_exact_and_restrictive_variants_are_rejected(self) -> None:
         self.assertEqual(canonical_rights_uri("http://creativecommons.org/licenses/by/4.0"),
                          "https://creativecommons.org/licenses/by/4.0/")

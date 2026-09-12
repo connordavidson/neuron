@@ -1,6 +1,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
+const { execFileSync } = require('node:child_process');
+const referenceIndex = process.argv.indexOf('--parser-ref');
+const parserRef = referenceIndex >= 0 ? process.argv[referenceIndex + 1] : undefined;
 
 const moduleCache = new Map();
 function loadTypeScript(filename) {
@@ -8,7 +11,9 @@ function loadTypeScript(filename) {
   if (moduleCache.has(filename)) return moduleCache.get(filename).exports;
   const module = { exports: {} };
   moduleCache.set(filename, module);
-  const source = fs.readFileSync(filename, 'utf8');
+  const source = parserRef
+    ? execFileSync('git', ['show', `${parserRef}:${path.relative(path.resolve(__dirname, '..'), filename)}`], { encoding: 'utf8' })
+    : fs.readFileSync(filename, 'utf8');
   const code = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
@@ -30,7 +35,13 @@ async function main() {
     unit.sentences?.map(sentence => parser.hashContext(sentence.text))
       ?? sentences.sentenceSpans(unit.text).map(span => parser.hashContext(span.text)));
   fs.mkdirSync(path.dirname(output), { recursive: true });
-  fs.writeFileSync(output, JSON.stringify(parsed, null, 2) + '\n');
+  const temporary = output + `.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(parsed, null, 2) + '\n');
+    fs.renameSync(temporary, output);
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
 }
 
 main().catch(error => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; });

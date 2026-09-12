@@ -10,7 +10,7 @@
     "minimumPublishers": 20,
     "minimumSubjects": 10,
     "searchEndpoint": "https://library.oapen.org/rest/search",
-    "query": "language:English"
+    "query": "language:English AND dc.type:book"
   },
   "standardEbooks": {
     "target": 40,

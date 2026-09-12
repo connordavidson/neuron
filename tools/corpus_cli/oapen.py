@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urljoin
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from .common import normalize_key, sha256_file, stable_id, unique, utc_now
@@ -23,7 +27,9 @@ def discover_oapen(config: dict[str, Any], candidate_limit: int) -> list[dict[st
     query = config.get("query", "dc.language.iso:eng")
     discovered: list[dict[str, Any]] = []
     offset = 0
-    page_size = min(100, max(10, candidate_limit))
+    # Expanded OAPEN records are large. Ten-record pages are consistently more
+    # reliable than the nominal 100-record maximum and make progress visible.
+    page_size = min(10, max(1, candidate_limit))
     while len(discovered) < candidate_limit:
         url = f"{endpoint}?{urlencode({'query': query, 'expand': 'metadata,bitstreams', 'limit': page_size, 'offset': offset})}"
         payload = fetch_json(url)
@@ -34,22 +40,51 @@ def discover_oapen(config: dict[str, Any], candidate_limit: int) -> list[dict[st
             candidate = candidate_from_item(item, endpoint)
             if candidate:
                 discovered.append(candidate)
+        print(f"Catalog: {len(discovered)}/{candidate_limit} eligible whole books ({offset + len(items)} records checked)")
         if len(items) < page_size:
             break
         offset += len(items)
     return dedupe_metadata(discovered)[:candidate_limit]
 
 
-def fetch_json(url: str) -> Any:
-    request = Request(url, headers={"Accept": "application/json", "User-Agent": USER_AGENT})
-    with urlopen(request, timeout=60) as response:
-        return json.load(response)
+def fetch_json(url: str, attempts: int = 4) -> Any:
+    curl = shutil.which("curl")
+    if curl:
+        completed = subprocess.run([
+            curl, "-fsSL", "--compressed", "--connect-timeout", "12", "--max-time", "30",
+            "--retry", "1", "--retry-delay", "2", "--retry-all-errors",
+            "-H", "Accept: application/json", "-H", f"User-Agent: {USER_AGENT}", url,
+        ], check=True, capture_output=True)
+        return json.loads(completed.stdout)
+    request = Request(url, headers={
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "Connection": "close",
+        "User-Agent": USER_AGENT,
+    })
+    for attempt in range(attempts):
+        try:
+            with urlopen(request, timeout=120) as response:
+                payload = response.read()
+                if response.headers.get("Content-Encoding", "").casefold() == "gzip":
+                    payload = gzip.decompress(payload)
+                return json.loads(payload)
+        except (TimeoutError, URLError, HTTPError):
+            if attempt + 1 >= attempts:
+                raise
+            delay = 2 ** attempt
+            print(f"OAPEN catalog request timed out; retrying in {delay}s")
+            time.sleep(delay)
+    raise RuntimeError("OAPEN catalog request exhausted retries")
 
 
 def candidate_from_item(item: dict[str, Any], endpoint: str) -> dict[str, Any] | None:
     metadata = metadata_map(item.get("metadata", []))
     language = " ".join(values(metadata, "dc.language", "dc.language.iso")).casefold()
     if language and not re.search(r"\b(?:en|eng|english)\b", language):
+        return None
+    publication_types = {normalize_key(value) for value in values(metadata, "dc.type")}
+    if "book" not in publication_types:
         return None
     bitstreams = item.get("bitstreams", []) or []
     pdfs = [bitstream for bitstream in bitstreams if bitstream.get("mimeType") == "application/pdf"
@@ -84,6 +119,7 @@ def candidate_from_item(item: dict[str, Any], endpoint: str) -> dict[str, Any] |
             "publisher": publishers[0] if publishers else "",
             "subjects": subjects,
             "language": first(metadata, "dc.language.iso", "dc.language") or "eng",
+            "publicationType": "book",
             "doi": doi,
             "isbns": isbns,
             "downloadUrl": download_url,
@@ -100,11 +136,12 @@ def download_and_validate(candidates: list[dict[str, Any]], data_dir: Path, work
     results: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
         future_map = {executor.submit(download_one, candidate, data_dir): candidate for candidate in candidates}
-        for future in as_completed(future_map):
+        for completed, future in enumerate(as_completed(future_map), 1):
             try:
                 value = future.result()
                 if value:
                     results.append(value)
+                    print(f"Download: {len(results)} accepted, {completed}/{len(future_map)} checked")
             except Exception as error:
                 candidate = future_map[future]
                 print(f"Rejected {candidate['id']}: {error}")
