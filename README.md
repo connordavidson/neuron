@@ -11,7 +11,7 @@ neuron is a new type of ebook reader. The current app, FlowReader, is a React Na
 - Snaps each vertical swipe to the next two-sentence reading page
 - Fuses PDF outlines, spatial contents entries, numbering, typography, whitespace, alignment, and document position for navigation
 - Detects title-page metadata plus front matter, chapters, parts, appendices, notes, references, indexes, and other semantic sections
-- Skips only confidently identified front matter on first open
+- Starts at the introduction/body on first open, while retaining copyright, dedication, and contents for backward scrolling and the section picker
 - Provides a chapter picker for quick navigation
 - Saves the visible reading page automatically, including when the app is backgrounded
 - Opens cached book content without reparsing or replacing it during a reading session
@@ -21,7 +21,7 @@ neuron is a new type of ebook reader. The current app, FlowReader, is a React Na
 - Sorts books by most recently read
 - Swipe left on a book to reveal Delete; removal still requires confirmation
 - Keeps closing quotation marks attached to their sentences, including repairs for older imports without shifting bookmarks
-- Keeps footnotes, captions, tables, and references as contextual notes instead of mixing them into the main prose feed
+- Keeps body footnotes, captions, tables, and references contextual; dedicated notes, bibliography, index, and credits sections remain readable
 - Anchors bookmarks to the PDF page, source offset, and a normalized context hash
 
 ## Run on iOS
@@ -36,6 +36,8 @@ npm run ios
 
 The first iOS run generates the native project and links the local PDFKit module. Because FlowReader includes custom native code, use the generated development build rather than Expo Go. After that, `npm start` starts the development server for fast refresh.
 
+After native extractor changes, rerun `npm run ios`: refreshing JavaScript alone does not update PDFKit extraction. An older development build can fall back to text-only extraction, which loses the geometry needed for reliable chapter detection.
+
 For a physical iPhone, connect and trust it, enable Developer Mode, then run `npm run ios -- --device`. Choose your device and configure your Apple development team/signing in Xcode if prompted. The phone and computer should be on the same network while using the development server. Change the bundle identifier and Apple team in `app.json` for your own distribution.
 
 ## PDF support
@@ -43,6 +45,8 @@ For a physical iPhone, connect and trust it, enable Developer Mode, then run `np
 The importer requires a PDF with a selectable text layer. Image-only scans need OCR before import. PDF text often contains visual line breaks instead of semantic paragraphs. FlowReader joins continuous text within each chapter, uses Apple's on-device Natural Language sentence tokenizer, and filters its boundaries for PDF ellipses, closing quotes, dialogue attribution, and initials. Ellipses such as `...`, `. . .`, and `…` are treated as a unit, never as individual sentences. Each complete reading page pairs two detected sentences; a final leftover sentence may stand alone. Ambiguous punctuation can still require interpretation.
 
 Parser changes apply automatically to new imports. Existing books retain their card layout and bookmark. Use **Improve parsing** in Reading settings to opt into a reparse; the app installs the new layout only when it can remap the current source anchor with at least 90% confidence.
+
+Copyright and other front matter can be reached from the section picker or by scrolling backward from the reading start. Dedicated notes and credits remain available at the back. Optional copyright, notes, bibliography, and index text does not add to the main reading-progress denominator.
 
 All reading pages use the selected font size. Exceptionally long sentence pairs can scroll within their page. The swipe indicator stays at the bottom of the reader. A chapter's final unpaired sentence also stands alone so the next chapter starts on a fresh card.
 

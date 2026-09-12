@@ -26,7 +26,7 @@ import {
 
 export { hashContext, remapReadingPosition, sourceAnchorForLegacy } from './readingUnits';
 
-export const CONTENT_PARSER_VERSION = 7;
+export const CONTENT_PARSER_VERSION = 8;
 
 export type SentenceTokenizer = (texts: string[]) => Promise<number[][]>;
 
@@ -79,11 +79,14 @@ type SectionCandidate = Evidence & {
 };
 
 const NAVIGABLE_KINDS = new Set<SemanticSectionKind>([
+  'cover', 'titlePage', 'copyright', 'dedication', 'contents', 'unknownFront',
   'foreword', 'preface', 'acknowledgments', 'introduction', 'part', 'chapter',
   'section', 'conclusion', 'epilogue', 'appendix', 'glossary', 'notes',
   'bibliography', 'index', 'aboutAuthor', 'colophon',
 ]);
 const PRIMARY_KINDS = new Set<SemanticSectionKind>([
+  'cover', 'titlePage', 'copyright', 'dedication', 'contents', 'unknownFront',
+  'notes', 'bibliography', 'index', 'colophon', 'unknownBack',
   'foreword', 'preface', 'acknowledgments', 'introduction', 'part', 'chapter',
   'section', 'conclusion', 'epilogue', 'appendix', 'glossary', 'aboutAuthor', 'body',
 ]);
@@ -96,6 +99,10 @@ const BACK_KINDS = new Set<SemanticSectionKind>([
 ]);
 const FRONT_KINDS = new Set<SemanticSectionKind>([
   'cover', 'titlePage', 'copyright', 'dedication', 'contents', 'unknownFront',
+]);
+// Small print is the main content of these sections, not a body footnote.
+const COMPLETE_TEXT_KINDS = new Set<SemanticSectionKind>([
+  ...FRONT_KINDS, 'notes', 'bibliography', 'index', 'glossary', 'colophon', 'unknownBack',
 ]);
 const EXPLICIT_NUMBER = '(?:\\d{1,4}|[IVXLCDM]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)';
 const CHAPTER_PATTERN = new RegExp(`^(?:chapter|ch\\.?|habit)\\s+${EXPLICIT_NUMBER}(?:\\s*[:.\\-–—]\\s*.+)?$`, 'iu');
@@ -394,7 +401,7 @@ function classifyLine(line: LayoutLine, median: number): ContentBlockKind {
 function looksLikeHeading(line: LayoutLine, median: number): boolean {
   const text = line.text;
   if (text.length < 2 || text.length > 180 || /\.["'”’»）)\]}]*$/u.test(text) || /^https?:|^www\./iu.test(text)) return false;
-  if (CHAPTER_PATTERN.test(text) || PART_PATTERN.test(text)) return true;
+  if ((CHAPTER_PATTERN.test(text) || PART_PATTERN.test(text)) && !/^\p{Ll}/u.test(text)) return true;
   if (classifySectionTitle(text) && /^\p{Lu}/u.test(text) && text.split(/\s+/u).length <= 8 && !TERMINAL_PROSE.test(text)) return true;
   const words = text.split(/\s+/u).filter(Boolean);
   if (words.length > 18) return false;
@@ -518,7 +525,11 @@ function inferMetadata(
 function openingTitleGroups(pages: PDFPageExtraction[]): Array<{ text: string; size: number; pageIndex: number }> {
   const result: Array<{ text: string; size: number; pageIndex: number }> = [];
   for (const page of pages.slice(0, 6)) {
-    const lines = linesFromPage(page).filter((line) => line.fontSize >= 14 && line.text.length >= 2)
+    const pageLines = linesFromPage(page);
+    // A contents page can use large type for chapter entries even when the
+    // actual cover/title page is an image. Those entries are not book titles.
+    if (pageLines.some(line => /^(?:table of )?contents$/iu.test(line.text))) continue;
+    const lines = pageLines.filter((line) => line.fontSize >= 14 && line.text.length >= 2)
       .sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
     let group: LayoutLine[] = [];
     const flush = () => {
@@ -553,6 +564,10 @@ function detectSections(
   const candidates: SectionCandidate[] = [];
   const outlineItems = extraction.outlines ?? [];
   const outlineMatches = outlineItems.map((item) => ({ item, blockIndex: matchingOutlineBlock(item, blocks) }));
+  const numberedOutlineLevels = outlineItems.filter((item) => /^\s*(?:one|two|three|\d+|[IVX]+)\s*[:.]\s+/iu.test(item.title)).map((item) => item.level ?? 0);
+  const chapterOutlineLevel = numberedOutlineLevels.length >= 3 ? Math.min(...numberedOutlineLevels) : -1;
+  const numberedOutline = (item: typeof outlineItems[number] | undefined) => Boolean(item && (item.level ?? 0) === chapterOutlineLevel
+    && new RegExp(`^${EXPLICIT_NUMBER}\\s*[:.]\\s+`, 'iu').test(item.title));
   const tocEntries = parseTOCEntries(blocks);
   const tocPages = new Set(blocks.filter(({ text }) => /^(?:table of )?contents$/iu.test(text))
     .flatMap(({ anchor }) => [anchor.pageIndex, anchor.pageIndex + 1]));
@@ -562,9 +577,14 @@ function detectSections(
   for (const { block, blockIndex } of headingBlocks) {
     const semantic = classifySectionTitle(block.text);
     const outline = outlineMatches.find((match) => match.blockIndex === blockIndex)?.item;
+    const containingOutline = outlineItems.filter((item) => item.pageIndex <= block.anchor.pageIndex && item.pageIndex >= 0)
+      .sort((a, b) => b.pageIndex - a.pageIndex)[0];
+    const containingKind = containingOutline ? classifySectionTitle(containingOutline.title)?.kind : undefined;
+    if (!outline && containingKind && ['notes', 'bibliography', 'index'].includes(containingKind)) continue;
     const toc = tocEntries.find((item) => titleSimilarity(item.title, block.text) >= 0.78
       && (item.pageIndex == null || Math.abs(item.pageIndex - block.anchor.pageIndex) <= 1));
     let kind = semantic?.kind;
+    if (!kind && numberedOutline(outline)) kind = 'chapter';
     if (!kind && CHAPTER_PATTERN.test(block.text)) kind = 'chapter';
     if (!kind && PART_PATTERN.test(block.text)) kind = 'part';
     if (!kind && NUMBERED_SECTION_PATTERN.test(block.text)) kind = 'section';
@@ -601,7 +621,7 @@ function detectSections(
     const confidence = confirmed ? 0.94 : explicit ? 0.78 : 0.56;
     candidates.push({
       title: cleanHeading(item.title),
-      kind: semantic?.kind ?? (PART_PATTERN.test(item.title) ? 'part' : CHAPTER_PATTERN.test(item.title) ? 'chapter' : 'section'),
+      kind: semantic?.kind ?? (PART_PATTERN.test(item.title) ? 'part' : CHAPTER_PATTERN.test(item.title) || numberedOutline(item) ? 'chapter' : 'section'),
       pageIndex: item.pageIndex,
       blockIndex,
       level: item.level ?? semantic?.level ?? 1,
@@ -684,6 +704,7 @@ function matchingOutlineBlock(item: NonNullable<PDFExtractionResult['outlines']>
   // Publisher bookmarks often append the chapter author's name; it is printed
   // as a separate byline, not part of the heading's typography.
   const withoutByline = item.title.replace(/\s+\((?=[^()]*\p{L})[^()]+\)\s*$/u, '');
+  const withoutOrdinal = withoutByline.replace(new RegExp(`^${EXPLICIT_NUMBER}\\s*[:.]\\s*`, 'iu'), '');
   for (let index = 0; index < blocks.length; index++) {
     const first = blocks[index]!;
     if (first.anchor.pageIndex !== item.pageIndex || first.kind !== 'heading') continue;
@@ -695,7 +716,12 @@ function matchingOutlineBlock(item: NonNullable<PDFExtractionResult['outlines']>
         || (block.bounds?.y ?? 0) - (blocks[next - 1]!.bounds?.y ?? 0) > (first.fontSize ?? 11) * 2.5)) break;
       text += (text ? ' ' : '') + block.text;
       const withoutFootnote = text.replace(/(?<=\p{L})\d{1,2}$/u, '');
-      if (Math.max(titleSimilarity(withoutFootnote, item.title), titleSimilarity(withoutFootnote, withoutByline)) >= 0.84) return index;
+      // PDF kerning can extract a heading as "V alue". Only tolerate this
+      // when confirming a printed heading at the bookmark's exact page.
+      const compact = (value: string) => normalizeKey(value).replace(/\s+/gu, '');
+      if ([item.title, withoutByline, withoutOrdinal].some((title) => compact(title) === compact(withoutFootnote))) return index;
+      if (Math.max(titleSimilarity(withoutFootnote, item.title), titleSimilarity(withoutFootnote, withoutByline),
+        titleSimilarity(withoutFootnote, withoutOrdinal)) >= 0.84) return index;
     }
   }
   return -1;
@@ -773,6 +799,7 @@ function parseTOCEntries(blocks: InternalBlock[]): Array<{ title: string; printe
 
 function classifySectionTitle(value: string): { kind: SemanticSectionKind; level: number } | undefined {
   const text = normalizeKey(value);
+  if (/^(?:also by|other (?:books|works) by|books by)\b/.test(text)) return { kind: 'unknownFront', level: 0 };
   if (/^(?:cover)$/.test(text)) return { kind: 'cover', level: 0 };
   if (/^(?:title page)$/.test(text)) return { kind: 'titlePage', level: 0 };
   if (/^(?:copyright|imprint|license|publication details?)$/.test(text)) return { kind: 'copyright', level: 0 };
@@ -787,12 +814,12 @@ function classifySectionTitle(value: string): { kind: SemanticSectionKind; level
   if (/^(?:conclusion)\b/.test(text)) return { kind: 'conclusion', level: 1 };
   if (/^(?:epilogue|afterword)\b/.test(text)) return { kind: 'epilogue', level: 1 };
   if (/^(?:appendix|appendices)\b/.test(text)) return { kind: 'appendix', level: 1 };
-  if (/^(?:glossary|list of abbreviations)\b/.test(text)) return { kind: 'glossary', level: 1 };
+  if (/^(?:glossary|list of abbreviations|abbreviations in (?:the )?notes)\b/.test(text)) return { kind: 'glossary', level: 1 };
   if (/^(?:notes|endnotes|footnotes)(?: to (?:chapter|part) .+)?$/.test(text)) return { kind: 'notes', level: 1 };
   if (/^(?:(?:selected )?bibliography|references|works cited|further reading)$/.test(text)) return { kind: 'bibliography', level: 1 };
   if (/^(?:(?:subject|author|name) )?index$/.test(text)) return { kind: 'index', level: 1 };
   if (/^(?:about (?:the )?author|contributors?|author biography)\b/.test(text)) return { kind: 'aboutAuthor', level: 1 };
-  if (/^(?:colophon)\b/.test(text)) return { kind: 'colophon', level: 1 };
+  if (/^(?:colophon|(?:illustration|photo|photograph|image) credits|credits)$/.test(text)) return { kind: 'colophon', level: 1 };
   return undefined;
 }
 
@@ -819,7 +846,7 @@ function enforceDocumentOrder(candidates: SectionCandidate[], suppressed: ParseD
         evidence: candidate.evidence, reason: 'front-matter label occurred after body began' });
       continue;
     }
-    if (!isFront && !isBack) bodySeen = true;
+    if (!isFront && !isBack && candidate.kind !== 'preface' && candidate.kind !== 'foreword') bodySeen = true;
     // Collected works legitimately place references, contributor notes, and
     // acknowledgments between chapters. Preserve the chronological candidates;
     // hierarchy and confidence decide navigation instead of a one-way back-matter flag.
@@ -843,7 +870,8 @@ function buildPassages(blocks: InternalBlock[], sections: SectionNode[]): Readin
   for (const section of sections) {
     if (!PRIMARY_KINDS.has(section.kind)) continue;
     const candidates = blocks.slice(section.startBlock, section.endBlock + 1)
-      .filter((block) => block.kind === 'prose');
+      .filter((block) => block.sectionId === section.id && (block.kind === 'prose' || block.kind === 'reference'
+        || COMPLETE_TEXT_KINDS.has(section.kind) && block.kind !== 'decorative'));
     if (!candidates.length) continue;
     let text = '';
     const segments: ReadingPassageSegment[] = [];
@@ -860,9 +888,10 @@ function buildPassages(blocks: InternalBlock[], sections: SectionNode[]): Readin
 
 function buildSupplements(blocks: InternalBlock[], sections: SectionNode[], units: ReadingUnit[]): ContextualSupplement[] {
   const secondary = new Set<ContentBlockKind>(['footnote', 'caption', 'table', 'reference']);
+  const closestUnit = indexReadingUnits(units);
   return blocks.filter((block) => secondary.has(block.kind)).map((block, index) => {
     const section = sections.find(({ id }) => id === block.sectionId);
-    const closest = closestUnit(units, block.anchor.pageIndex, section?.id);
+    const closest = closestUnit(block.anchor.pageIndex, section?.id);
     return {
       id: `supplement-${index}`,
       kind: block.kind as ContextualSupplement['kind'],
@@ -876,9 +905,10 @@ function buildSupplements(blocks: InternalBlock[], sections: SectionNode[], unit
 }
 
 function attachSupplements(units: ReadingUnit[], supplements: ContextualSupplement[]): void {
+  const byId = new Map(units.map(unit => [unit.id, unit]));
   for (const supplement of supplements) {
     const unitID = supplement.relatedBlockIds.find((id) => id.startsWith('unit-'));
-    const unit = units.find(({ id }) => id === unitID);
+    const unit = unitID ? byId.get(unitID) : undefined;
     if (unit) unit.supplementIds.push(supplement.id);
   }
 }
@@ -894,7 +924,11 @@ function finalizeSectionRanges(sections: SectionNode[], blocks: InternalBlock[],
 }
 
 function determineReadingStart(sections: SectionNode[], units: ReadingUnit[]): number {
-  const section = sections.find((candidate) => BODY_START_KINDS.has(candidate.kind) && candidate.startUnit >= 0);
+  // Availability and the first-open destination are independent: optional
+  // front/back matter stays readable without forcing a new reader through it.
+  const section = sections.find((candidate) => BODY_START_KINDS.has(candidate.kind)
+    && candidate.kind !== 'foreword' && candidate.kind !== 'preface' && candidate.startUnit >= 0)
+    ?? sections.find((candidate) => BODY_START_KINDS.has(candidate.kind) && candidate.startUnit >= 0);
   return Math.max(0, section?.startUnit ?? (units.length ? 0 : -1));
 }
 
@@ -918,13 +952,31 @@ function firstBlockOnOrAfterPage(blocks: InternalBlock[], pageIndex: number): nu
   return index < 0 ? Math.max(0, blocks.length - 1) : index;
 }
 
-function closestUnit(units: ReadingUnit[], pageIndex: number, sectionId?: string): ReadingUnit | undefined {
-  return [...units].sort((a, b) => {
-    const sectionPenaltyA = sectionId && a.sectionId !== sectionId ? 1000 : 0;
-    const sectionPenaltyB = sectionId && b.sectionId !== sectionId ? 1000 : 0;
-    return sectionPenaltyA + Math.min(...a.sourcePages.map((page) => Math.abs(page - pageIndex)))
-      - sectionPenaltyB - Math.min(...b.sourcePages.map((page) => Math.abs(page - pageIndex)));
-  })[0];
+function indexReadingUnits(units: ReadingUnit[]): (pageIndex: number, sectionId?: string) => ReadingUnit | undefined {
+  type Entry = { page: number; index: number; unit: ReadingUnit };
+  const groups = new Map<string, Map<number, Entry>>();
+  units.forEach((unit, index) => {
+    for (const key of ['', ...(unit.sectionId ? [unit.sectionId] : [])]) {
+      let pages = groups.get(key);
+      if (!pages) { pages = new Map(); groups.set(key, pages); }
+      for (const page of unit.sourcePages) if (!pages.has(page)) pages.set(page, { page, index, unit });
+    }
+  });
+  const sorted = new Map([...groups].map(([key, pages]) => [key, [...pages.values()].sort((a, b) => a.page - b.page)]));
+  return (pageIndex, sectionId) => {
+    const entries = sorted.get(sectionId ?? '') ?? sorted.get('') ?? [];
+    let low = 0, high = entries.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (entries[middle]!.page < pageIndex) low = middle + 1;
+      else high = middle;
+    }
+    const before = entries[low - 1], after = entries[low];
+    if (!before) return after?.unit;
+    if (!after) return before.unit;
+    const difference = Math.abs(before.page - pageIndex) - Math.abs(after.page - pageIndex);
+    return (difference < 0 || difference === 0 && before.index < after.index ? before : after).unit;
+  };
 }
 
 function stripInternalBlock(block: InternalBlock): ContentBlock {

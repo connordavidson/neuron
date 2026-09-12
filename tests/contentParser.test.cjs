@@ -187,7 +187,9 @@ test('wrapped unnumbered outline chapter restores prose after a previous bibliog
     outlines: [{ title: 'A Different Kind of Beginning', pageIndex: 2, level: 0 }] }, 'book.pdf');
   assert.ok(parsed.chapters.some(c => c.title === 'A Different Kind of Beginning'));
   assert.match(parsed.paragraphs.join(' '), /Body text returns here/);
-  assert.ok(!parsed.paragraphs.join(' ').includes('A citation'));
+  const citation = parsed.readingUnits.find(unit => unit.text.includes('A citation'));
+  assert.equal(parsed.sections.find(section => section.id === citation?.sectionId)?.kind, 'bibliography');
+  assert.notEqual(citation?.sectionId, parsed.readingUnits.find(unit => unit.text.includes('Body text returns here'))?.sectionId);
 });
 
 test('chapter-local running headers are removed without requiring a quarter of the whole book', async () => {
@@ -257,4 +259,78 @@ test('a narrow repeated gutter still separates columns without treating ordinary
     { ...span, text: span.text.slice(5), sourceStart: span.sourceStart + 5, bounds: { ...span.bounds, x: span.bounds.x + 32 } });
   const single = await parseEbook({ pages: [plain.text], structuredPages: [plain] }, 'book.pdf');
   assert.match(single.paragraphs.join(' '), /Wide word spacing must stay together/);
+});
+
+test('copyright and contents remain readable, but first open starts at the introduction', async () => {
+  const pages = [
+    page(0, [{ text: 'Also by Alex Reader', fontSize: 20 }, 'An earlier work. Another earlier work.']),
+    page(1, [{ text: 'Copyright', fontSize: 20 }, 'Copyright belongs to the author. All rights are reserved.']),
+    page(2, [{ text: 'Contents', fontSize: 20 }, 'Introduction .... 1', 'Chapter One .... 2']),
+    page(3, [{ text: 'Introduction', fontSize: 20 }, 'This is the actual beginning. The second sentence follows.']),
+    page(4, [{ text: 'Chapter One', fontSize: 20 }, 'The main chapter begins. Its second sentence follows.']),
+    page(5, [{ text: 'Notes', fontSize: 20 }, 'A contextual note is available. Another note follows.']),
+  ];
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages,
+    outlines: [{ title: 'Introduction', pageIndex: 3, level: 0 }, { title: 'Chapter One', pageIndex: 4, level: 0 }, { title: 'Notes', pageIndex: 5, level: 0 }] }, 'book.pdf');
+  const copyright = parsed.chapters.find(c => c.title === 'Copyright');
+  assert.ok(copyright && copyright.paragraphIndex < parsed.readingStart);
+  assert.ok(parsed.chapters.some(c => c.title === 'Contents'));
+  assert.match(parsed.paragraphs[parsed.readingStart], /This is the actual beginning/);
+  assert.match(parsed.paragraphs.join(' '), /Copyright belongs to the author/);
+  assert.ok(parsed.chapters.some(c => c.title === 'Notes'));
+  const { buildReadingOffsets, summaryAtPosition } = loadSource('src/lib/readingPosition.ts');
+  const offsets = buildReadingOffsets(parsed);
+  const summary = summaryAtPosition({ id: 'test', currentParagraph: copyright.paragraphIndex }, parsed, offsets);
+  assert.equal(summary.currentParagraph, copyright.paragraphIndex);
+  assert.equal(summary.readingProgress, 0);
+  const notes = parsed.chapters.find(c => c.title === 'Notes');
+  assert.equal(offsets[notes.paragraphIndex], offsets.at(-1));
+});
+
+test('numbered outline titles match separate ordinal and title typography without inventing prose chapters', async () => {
+  const names = ['One', 'Two', 'Three'];
+  const titles = ['The Beginning', 'A Second Stage', 'The Final Stage'];
+  const pages = names.map((name, index) => page(index, [
+    { text: name, fontSize: 15, y: 130 },
+    { text: titles[index].replace('Stage', 'S tage'), fontSize: 28, y: 170 },
+    { text: 'The story starts in this chapter. It continues in the next sentence.', y: 280 },
+    { text: 'chapter 15: if somebody mentions this topic in passing,', y: 330 },
+    { text: 'it is not a new heading. More ordinary text follows.', y: 350 },
+  ]));
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages,
+    outlines: names.map((name, index) => ({ title: `${name}: ${titles[index]}`, pageIndex: index, level: 0 })) }, 'book.pdf');
+  assert.deepEqual(parsed.chapters.filter(c => c.kind === 'chapter').map(c => c.title), names.map((name, index) => `${name}: ${titles[index]}`));
+  assert.ok(!parsed.chapters.some(c => c.title.includes('somebody')));
+});
+
+test('contextual supplements still attach to their own section with indexed lookup', async () => {
+  const parsed = await parseEbook(fixtureExtraction(), 'book.pdf');
+  for (const supplement of parsed.supplements) {
+    const block = parsed.blocks.find(b => supplement.relatedBlockIds.includes(b.id));
+    const unit = parsed.readingUnits.find(u => supplement.relatedBlockIds.includes(u.id));
+    assert.ok(unit);
+    if (parsed.readingUnits.some(u => u.sectionId === block.sectionId)) assert.equal(unit.sectionId, block.sectionId);
+    assert.ok(unit.supplementIds.includes(supplement.id));
+  }
+});
+
+test('dedicated credits and notes retain small print in the main flow', async () => {
+  const pages = [
+    page(0, [{ text: 'Chapter One', fontSize: 20 }, 'The story begins. Another sentence follows.']),
+    page(1, [{ text: 'Notes', fontSize: 20 }, { text: 'Small-print note remains readable. Another note follows.', fontSize: 8, y: 700 }]),
+    page(2, [{ text: 'Illustration Credits', fontSize: 12 }, { text: 'Illustrations belong to their creators. Images used with permission.', fontSize: 8, y: 700 }]),
+  ];
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages }, 'book.pdf');
+  assert.match(parsed.paragraphs.join(' '), /Small-print note remains readable/);
+  assert.match(parsed.paragraphs.join(' '), /Images used with permission/);
+  assert.ok(parsed.chapters.some(c => c.title === 'Illustration Credits'));
+  assert.equal(parsed.readingStart, 0);
+});
+
+test('large chapter entries in contents do not replace metadata when the cover is an image', async () => {
+  const pages = [page(0, []), page(1, [{ text: 'Contents', fontSize: 12 },
+    { text: 'One THE BEGINNING', fontSize: 20 }, { text: 'Two THE JOURNEY', fontSize: 20 }])];
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages,
+    metadata: { title: 'A Book about Journeys' } }, 'upload.pdf');
+  assert.equal(parsed.metadata.title.value, 'A Book about Journeys');
 });
