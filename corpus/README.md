@@ -8,4 +8,4 @@ The OAPEN headline set is split into 150 discovery, 50 development, and 100 lock
 
 The token-protected annotation interface records the canonical title, reading start, semantic section boundaries, selected block labels, running page furniture, body word counts, and sentence-end anchors. Select text on the displayed page before choosing **Label current block** to seed an exact block annotation.
 
-`benchmark-status.json` records only non-copyrighted aggregate smoke diagnostics and whether the locked test has actually run. It must never be treated as a substitute for the private 100-book scorecard.
+`benchmark-status.json` records only aggregate discovery diagnostics and whether the locked test has actually run. It must never be treated as a substitute for the private 100-book scorecard. See [DISCOVERY-RESULTS.md](DISCOVERY-RESULTS.md) for the completed 50-book run, before/after comparison, implemented rules and remaining limitations. The 300-book/40-control targets above are not yet completed.
