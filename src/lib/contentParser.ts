@@ -26,7 +26,7 @@ import {
 
 export { hashContext, remapReadingPosition, sourceAnchorForLegacy } from './readingUnits';
 
-export const CONTENT_PARSER_VERSION = 6;
+export const CONTENT_PARSER_VERSION = 7;
 
 export type SentenceTokenizer = (texts: string[]) => Promise<number[][]>;
 
@@ -217,19 +217,45 @@ function linesFromPage(page: PDFPageExtraction): LayoutLine[] {
   const grouped = new Map<number, PDFTextSpan[]>();
   for (const span of page.spans) {
     if (!span.text.trim()) continue;
+    if (span.bounds.x + span.bounds.width <= 0 || span.bounds.x >= page.width
+      || span.bounds.y + span.bounds.height <= 0 || span.bounds.y >= page.height) continue;
     const lineIndex = Number.isFinite(span.lineIndex) ? span.lineIndex : Math.round(span.bounds.y / Math.max(1, span.bounds.height));
     grouped.set(lineIndex, [...(grouped.get(lineIndex) ?? []), span]);
   }
   if (!grouped.size && page.text) {
     for (const span of fallbackSpans(page.text)) grouped.set(span.lineIndex, [span]);
   }
-  const lines = [...grouped.entries()].map(([lineIndex, spans]) => {
+  // Extractors may give both columns the same baseline/line index. Split at
+  // physical gutters before joining font runs, never after flattening the text.
+  const gutterGaps: Array<{ left: number; right: number; row: number }> = [];
+  for (const [row, spans] of grouped) {
+    const ordered = [...spans].sort((a, b) => a.bounds.x - b.bounds.x);
+    for (let index = 1; index < ordered.length; index++) {
+      const left = ordered[index - 1]!.bounds.x + ordered[index - 1]!.bounds.width;
+      const right = ordered[index]!.bounds.x;
+      if (right - left >= 8 && left > page.width * 0.25 && right < page.width * 0.75) gutterGaps.push({ left, right, row });
+    }
+  }
+  const rows = [...grouped.entries()].flatMap(([lineIndex, spans]) => {
     const ordered = [...spans].sort((a, b) => a.bounds.x - b.bounds.x || a.sourceStart - b.sourceStart);
+    const pieces: PDFTextSpan[][] = [];
+    for (const span of ordered) {
+      const previous = pieces.at(-1)?.at(-1);
+      const left = previous ? previous.bounds.x + previous.bounds.width : span.bounds.x;
+      const gap = span.bounds.x - left;
+      const narrowGutter = gap >= 8 && new Set(gutterGaps.filter((candidate) =>
+        Math.min(candidate.right, span.bounds.x) - Math.max(candidate.left, left) >= 6).map(({ row }) => row)).size >= Math.max(3, grouped.size * 0.4);
+      if (!previous || gap > Math.max(18, Math.min(previous.fontSize, span.fontSize) * 1.6) || narrowGutter) pieces.push([]);
+      pieces.at(-1)!.push(span);
+    }
+    return pieces.map((ordered, piece) => ({ lineIndex, ordered, piece }));
+  });
+  const lines = rows.map(({ lineIndex, ordered, piece }) => {
     const bounds = unionRects(ordered.map(({ bounds }) => bounds));
-    const largest = ordered.reduce((best, span) => span.fontSize > best.fontSize ? span : best, ordered[0]!);
+    const largest = ordered.reduce((best, span) => span.text.length > best.text.length ? span : best, ordered[0]!);
     const text = cleanLine(joinSpans(ordered));
     return {
-      id: `${page.index}:${lineIndex}`,
+      id: `${page.index}:${lineIndex}:${piece}`,
       pageIndex: page.index,
       pageLabel: page.label,
       lineIndex,
@@ -241,7 +267,7 @@ function linesFromPage(page: PDFPageExtraction): LayoutLine[] {
       pageHeight: page.height,
       fontName: largest.fontName,
       fontSize: largest.fontSize,
-      bold: ordered.some(({ bold }) => bold),
+      bold: ordered.filter(({ bold }) => bold).reduce((sum, span) => sum + span.text.length, 0) >= ordered.reduce((sum, span) => sum + span.text.length, 0) * 0.7,
       italic: ordered.some(({ italic }) => italic),
       centered: Math.abs(bounds.x + bounds.width / 2 - page.width / 2) <= page.width * 0.08,
     };
@@ -254,20 +280,24 @@ function orderPageLines(lines: LayoutLine[]): LayoutLine[] {
     return [...lines].sort((a, b) => a.lineIndex - b.lineIndex);
   }
   const pageWidth = lines[0]?.pageWidth ?? 612;
-  const eligible = lines.filter((line) => line.bounds.width < pageWidth * 0.72);
-  const centers = eligible.map((line) => line.bounds.x + line.bounds.width / 2).sort((a, b) => a - b);
   let split = 0;
-  let largestGap = 0;
-  for (let index = 1; index < centers.length; index++) {
-    const gap = centers[index]! - centers[index - 1]!;
-    if (gap > largestGap) { largestGap = gap; split = (centers[index]! + centers[index - 1]!) / 2; }
+  let bestScore = 0;
+  // Look for a persistent empty gutter, not a gap between line centers:
+  // short lines, equations and glossary labels make center clustering unstable.
+  for (let x = pageWidth * 0.28; x <= pageWidth * 0.72; x += 2) {
+    const left = lines.filter((line) => line.bounds.x + line.bounds.width <= x - 3);
+    const right = lines.filter((line) => line.bounds.x >= x + 3);
+    const crossing = lines.length - left.length - right.length;
+    if (Math.min(left.length, right.length) < Math.max(3, lines.length * 0.18) || crossing > Math.max(2, lines.length * 0.2)) continue;
+    const alignedRows = left.filter((line) => right.some((other) => Math.abs(other.bounds.y - line.bounds.y) < Math.max(line.fontSize, other.fontSize))).length;
+    if (alignedRows < 3) continue;
+    const score = left.length + right.length - crossing * 4 - Math.abs(x - pageWidth / 2) / pageWidth;
+    if (score > bestScore) { split = x; bestScore = score; }
   }
-  const leftCount = eligible.filter((line) => line.bounds.x + line.bounds.width / 2 < split).length;
-  const rightCount = eligible.length - leftCount;
-  if (largestGap < pageWidth * 0.16 || leftCount < 3 || rightCount < 3) {
+  if (!split) {
     return [...lines].sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x || a.lineIndex - b.lineIndex);
   }
-  const fullWidth = lines.filter((line) => line.bounds.width >= pageWidth * 0.72);
+  const fullWidth = lines.filter((line) => line.bounds.x < split && line.bounds.x + line.bounds.width > split);
   const columnLines = lines.filter((line) => !fullWidth.includes(line));
   const ordered: LayoutLine[] = [];
   let top = -Infinity;
@@ -291,6 +321,7 @@ function detectRunningFurniture(lines: LayoutLine[], pageCount: number): Set<str
   for (const line of lines) {
     const relativeTop = line.bounds.y / Math.max(1, line.pageHeight);
     if (relativeTop > 0.14 && relativeTop < 0.86) continue;
+    if (TERMINAL_PROSE.test(line.text) && line.text.split(/\s+/u).length > 8) continue;
     const normalized = furnitureKey(line.text);
     if (!normalized || normalized.length > 120) continue;
     const position = relativeTop <= 0.14 ? 'top' : 'bottom';
@@ -301,18 +332,31 @@ function detectRunningFurniture(lines: LayoutLine[], pageCount: number): Set<str
   const removed = new Set<string>();
   const threshold = Math.max(3, Math.ceil(pageCount * 0.25));
   for (const group of clusters.values()) {
-    if (new Set(group.map(({ pageIndex }) => pageIndex)).size < threshold) continue;
+    const pages = unique(group.map(({ pageIndex }) => pageIndex)).sort((a, b) => a - b);
+    const localDensity = pages.length / Math.max(1, pages.at(-1)! - pages[0]! + 1);
+    const positions = group.map((line) => line.bounds.y / line.pageHeight);
+    const stablePosition = Math.max(...positions) - Math.min(...positions) <= 0.025;
+    if (pages.length < threshold && !(pages.length >= 3 && localDensity >= 0.3 && stablePosition)) continue;
     group.forEach(({ id }) => removed.add(id));
   }
   return removed;
 }
 
 function reconstructBlocks(lines: LayoutLine[]): InternalBlock[] {
-  const pageGroups = groupBy(lines.filter((line) => !isPageNumberLine(line.text)), ({ pageIndex }) => pageIndex);
+  const pageGroups = groupBy(lines.filter((line) => !(isPageNumberLine(line.text)
+    && (line.bounds.y < line.pageHeight * 0.14 || line.bounds.y > line.pageHeight * 0.86))), ({ pageIndex }) => pageIndex);
+  const sizeWeights = new Map<number, number>();
+  for (const line of lines) {
+    if (line.text.length < 40 || line.fontSize <= 0) continue;
+    const size = Math.round(line.fontSize * 4) / 4;
+    sizeWeights.set(size, (sizeWeights.get(size) ?? 0) + line.text.length);
+  }
+  // A long abstract or many small footnotes can dominate a single page. Use
+  // the document's character-weighted body style, not that page's line median.
+  const documentMedian = [...sizeWeights].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 11;
   const result: InternalBlock[] = [];
   for (const [pageIndex, pageLines] of [...pageGroups.entries()].sort((a, b) => a[0] - b[0])) {
-    const bodySizes = pageLines.map(({ fontSize }) => fontSize).filter((size) => size > 0).sort((a, b) => a - b);
-    const median = bodySizes[Math.floor(bodySizes.length / 2)] ?? 11;
+    const median = documentMedian;
     let current: LayoutLine[] = [];
     const flush = () => {
       if (!current.length) return;
@@ -349,8 +393,9 @@ function classifyLine(line: LayoutLine, median: number): ContentBlockKind {
 
 function looksLikeHeading(line: LayoutLine, median: number): boolean {
   const text = line.text;
-  if (text.length < 2 || text.length > 180 || TERMINAL_PROSE.test(text) || /^https?:|^www\./iu.test(text)) return false;
-  if (classifySectionTitle(text) || CHAPTER_PATTERN.test(text) || PART_PATTERN.test(text)) return true;
+  if (text.length < 2 || text.length > 180 || /\.["'”’»）)\]}]*$/u.test(text) || /^https?:|^www\./iu.test(text)) return false;
+  if (CHAPTER_PATTERN.test(text) || PART_PATTERN.test(text)) return true;
+  if (classifySectionTitle(text) && /^\p{Lu}/u.test(text) && text.split(/\s+/u).length <= 8 && !TERMINAL_PROSE.test(text)) return true;
   const words = text.split(/\s+/u).filter(Boolean);
   if (words.length > 18) return false;
   const letters = [...text].filter((character) => /\p{L}/u.test(character));
@@ -363,7 +408,7 @@ function canJoinLines(previous: LayoutLine, next: LayoutLine, nextKind: ContentB
   if (nextKind !== 'prose' || previousKind !== 'prose' || previous.pageIndex !== next.pageIndex) return false;
   const sameColumn = Math.abs(previous.bounds.x - next.bounds.x) < Math.max(18, previous.pageWidth * 0.08);
   const verticalGap = next.bounds.y - (previous.bounds.y + previous.bounds.height);
-  const ordinaryGap = !Number.isFinite(verticalGap) || verticalGap < Math.max(previous.fontSize, next.fontSize) * 1.55;
+  const ordinaryGap = verticalGap >= -Math.min(previous.bounds.height, next.bounds.height) * 0.4 && verticalGap < Math.max(previous.fontSize, next.fontSize) * 1.55;
   return sameColumn && ordinaryGap && Math.abs(previous.fontSize - next.fontSize) <= Math.max(1.25, previous.fontSize * 0.16);
 }
 
@@ -405,22 +450,35 @@ function inferMetadata(
   const fallback = stripExtension(originalFileName).trim() || 'Untitled book';
   const rawMetadataTitle = cleanLine(extraction.metadata?.title ?? extraction.title ?? '');
   const opening = blocks.filter(({ anchor }) => anchor.pageIndex < Math.min(6, pages.length));
-  const candidates = opening.filter((block) => block.kind === 'heading' && isPlausibleTitle(block.text))
-    .map((block) => ({
-      block,
-      score: Math.min(0.96, 0.45 + Math.min(0.3, (block.fontSize ?? 0) / 80)
-        + (block.centered ? 0.12 : 0) + (block.anchor.pageIndex <= 2 ? 0.1 : 0)),
-    })).sort((a, b) => b.score - a.score);
+  const metadataUsable = isPlausibleTitle(rawMetadataTitle);
+  const titleGroups = openingTitleGroups(pages);
+  const candidates = titleGroups.map((group) => {
+    const pageMaximum = Math.max(...titleGroups.filter((other) => other.pageIndex === group.pageIndex).map(({ size }) => size));
+    const repeated = titleGroups.some((other) => other.pageIndex !== group.pageIndex && (titleSimilarity(other.text, group.text) >= 0.88
+      || normalizeKey(other.text).startsWith(normalizeKey(group.text) + ' ')));
+    const supported = metadataUsable && (titleSimilarity(rawMetadataTitle, group.text) >= 0.7
+      || normalizeKey(rawMetadataTitle).startsWith(normalizeKey(group.text) + ' '));
+    const spread = pages[group.pageIndex]!.width > pages[group.pageIndex]!.height * 1.2;
+    return { ...group, score: Math.min(0.97, 0.3 + 0.25 * group.size / pageMaximum
+      + Math.min(0.12, group.size / 400) + (repeated ? 0.18 : 0) + (supported ? 0.24 : 0)
+      + (group.pageIndex <= 1 ? 0.05 : 0) - (spread ? 0.2 : 0)) };
+  }).sort((a, b) => b.score - a.score);
   const pageTitle = candidates[0];
-  const metadataUsable = isPlausibleTitle(rawMetadataTitle) && normalizeKey(rawMetadataTitle) !== normalizeKey(fallback);
-  const corroborated = pageTitle && titleSimilarity(rawMetadataTitle, pageTitle.block.text) >= 0.7;
-  const title = metadataUsable && (corroborated || !pageTitle)
-    ? { value: rawMetadataTitle, confidence: corroborated ? 0.98 : 0.82,
-      evidence: corroborated ? ['PDF metadata title', 'matching prominent title-page typography'] : ['PDF metadata title'] }
+  const corroborated = pageTitle && metadataUsable && titleSimilarity(rawMetadataTitle, pageTitle.text) >= 0.7;
+  const metadataWords = normalizeKey(rawMetadataTitle).split(' ').filter(Boolean);
+  const prominentWords = new Set(pages.slice(0, 6).flatMap((page) => page.spans.filter((span) => span.fontSize >= 14)
+    .flatMap((span) => normalizeKey(span.text).split(' '))));
+  const metadataSupported = metadataUsable && metadataWords.every((word) => prominentWords.has(word));
+  const title = metadataSupported && (!pageTitle || !normalizeKey(rawMetadataTitle).startsWith(normalizeKey(pageTitle.text))
+    || pageTitle.text.split(/\s+/u).length <= 2 && metadataWords.length <= pageTitle.text.split(/\s+/u).length + 1)
+    ? { value: rawMetadataTitle, confidence: 0.9, evidence: ['PDF metadata title words corroborated in prominent opening spans'] }
     : pageTitle
-      ? { value: pageTitle.block.text, confidence: pageTitle.score, evidence: ['prominent opening-page typography'] }
+      ? { value: normalizeKey(rawMetadataTitle) === normalizeKey(pageTitle.text) ? rawMetadataTitle : pageTitle.text,
+        confidence: pageTitle.score, evidence: ['grouped opening-page title typography', ...(corroborated ? ['matching PDF metadata'] : [])] }
+      : metadataUsable
+        ? { value: rawMetadataTitle, confidence: 0.78, evidence: ['PDF metadata title; no typographic confirmation'] }
       : { value: fallback, confidence: 0.45, evidence: ['normalized PDF filename fallback'] };
-  const titleIndex = pageTitle ? opening.indexOf(pageTitle.block) : -1;
+  const titleIndex = pageTitle ? opening.findIndex((block) => block.anchor.pageIndex === pageTitle.pageIndex && titleSimilarity(block.text, pageTitle.text) >= 0.5) : -1;
   const afterTitle = titleIndex >= 0 ? opening.slice(titleIndex + 1, titleIndex + 4) : opening.slice(0, 5);
   const subtitleBlock = afterTitle.find((block) => block.kind === 'heading' && block.text !== title.value
     && isPlausibleTitle(block.text) && !/^by\b/iu.test(block.text));
@@ -457,6 +515,35 @@ function inferMetadata(
   };
 }
 
+function openingTitleGroups(pages: PDFPageExtraction[]): Array<{ text: string; size: number; pageIndex: number }> {
+  const result: Array<{ text: string; size: number; pageIndex: number }> = [];
+  for (const page of pages.slice(0, 6)) {
+    const lines = linesFromPage(page).filter((line) => line.fontSize >= 14 && line.text.length >= 2)
+      .sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
+    let group: LayoutLine[] = [];
+    const flush = () => {
+      if (!group.length) return;
+      const text = joinPDFLines(group.map(({ text }) => text));
+      if (isPlausibleTitle(text) && !classifySectionTitle(text) && !/[·•]/u.test(text)
+        && !/\b(?:editors?|edited by|series|editorial|volume\s+\d|lecture notes|springer briefs|monographs|foreword|preface)\b/iu.test(text)) {
+        result.push({ text, size: group[0]!.fontSize, pageIndex: page.index });
+      }
+      group = [];
+    };
+    for (const line of lines) {
+      const previous = group.at(-1);
+      if (previous && (Math.abs(previous.fontSize - line.fontSize) > Math.max(0.8, previous.fontSize * 0.06)
+        || line.bounds.y - previous.bounds.y > previous.fontSize * 2.4
+        || line.bounds.y <= previous.bounds.y
+        || !(Math.abs(previous.bounds.x - line.bounds.x) < page.width * 0.16
+          || Math.abs(previous.bounds.x + previous.bounds.width / 2 - line.bounds.x - line.bounds.width / 2) < page.width * 0.08))) flush();
+      group.push(line);
+    }
+    flush();
+  }
+  return result;
+}
+
 function detectSections(
   extraction: PDFExtractionResult,
   blocks: InternalBlock[],
@@ -465,6 +552,7 @@ function detectSections(
 ): { sections: SectionNode[]; suppressedNavigation: ParseDiagnostics['suppressedNavigation'] } {
   const candidates: SectionCandidate[] = [];
   const outlineItems = extraction.outlines ?? [];
+  const outlineMatches = outlineItems.map((item) => ({ item, blockIndex: matchingOutlineBlock(item, blocks) }));
   const tocEntries = parseTOCEntries(blocks);
   const tocPages = new Set(blocks.filter(({ text }) => /^(?:table of )?contents$/iu.test(text))
     .flatMap(({ anchor }) => [anchor.pageIndex, anchor.pageIndex + 1]));
@@ -473,8 +561,7 @@ function detectSections(
 
   for (const { block, blockIndex } of headingBlocks) {
     const semantic = classifySectionTitle(block.text);
-    const outline = outlineItems.find((item) => item.pageIndex === block.anchor.pageIndex
-      && titleSimilarity(item.title, block.text) >= 0.72);
+    const outline = outlineMatches.find((match) => match.blockIndex === blockIndex)?.item;
     const toc = tocEntries.find((item) => titleSimilarity(item.title, block.text) >= 0.78
       && (item.pageIndex == null || Math.abs(item.pageIndex - block.anchor.pageIndex) <= 1));
     let kind = semantic?.kind;
@@ -482,20 +569,21 @@ function detectSections(
     if (!kind && PART_PATTERN.test(block.text)) kind = 'part';
     if (!kind && NUMBERED_SECTION_PATTERN.test(block.text)) kind = 'section';
     if (!kind && !outline && !toc) continue;
-    const displayedTitle = kind ? expandedHeadingTitle(blocks, blockIndex, kind) : cleanHeading(block.text);
+    const displayedTitle = outline ? cleanHeading(outline.title) : kind ? expandedHeadingTitle(blocks, blockIndex, kind) : cleanHeading(block.text);
     const explicit = Boolean(semantic || CHAPTER_PATTERN.test(block.text) || PART_PATTERN.test(block.text));
     let confidence = 0.2 + (explicit ? 0.34 : 0) + Math.max(0, block.confidence - 0.55) * 0.55;
     const evidence = [...block.evidence];
     if (outline) { confidence += 0.32; evidence.push('matching PDF outline destination'); }
     if (toc) { confidence += 0.2; evidence.push('matching spatial table-of-contents entry'); }
     if (block.bounds && block.bounds.y <= block.pageHeight * 0.28) { confidence += 0.08; evidence.push('near page top'); }
-    if (TERMINAL_PROSE.test(block.text)) confidence -= 0.35;
+    if (TERMINAL_PROSE.test(block.text) && !outline && !toc) confidence -= 0.35;
+    if (outline) confidence = Math.max(confidence, 0.94);
     candidates.push({
       title: displayedTitle,
       kind: kind ?? 'section',
       pageIndex: block.anchor.pageIndex,
       blockIndex,
-      level: semantic?.level ?? outline?.level ?? ((kind ?? 'section') === 'part' ? 0 : (kind ?? 'section') === 'section' ? 2 : 1),
+      level: outline?.level ?? semantic?.level ?? ((kind ?? 'section') === 'part' ? 0 : (kind ?? 'section') === 'section' ? 2 : 1),
       confidence: clamp01(confidence),
       evidence,
       source: outline ? 'outline' : toc ? 'toc' : 'heading',
@@ -507,16 +595,18 @@ function detectSections(
     if (candidates.some((candidate) => candidate.pageIndex === item.pageIndex && titleSimilarity(candidate.title, item.title) >= 0.7)) continue;
     const semantic = classifySectionTitle(item.title);
     const explicit = semantic || CHAPTER_PATTERN.test(item.title) || PART_PATTERN.test(item.title);
-    const blockIndex = firstBlockOnOrAfterPage(blocks, item.pageIndex);
-    const confidence = explicit ? 0.78 : 0.56;
+    const matchedIndex = outlineMatches.find((match) => match.item === item)?.blockIndex ?? -1;
+    const confirmed = matchedIndex >= 0;
+    const blockIndex = confirmed ? matchedIndex : firstBlockOnOrAfterPage(blocks, item.pageIndex);
+    const confidence = confirmed ? 0.94 : explicit ? 0.78 : 0.56;
     candidates.push({
       title: cleanHeading(item.title),
       kind: semantic?.kind ?? (PART_PATTERN.test(item.title) ? 'part' : CHAPTER_PATTERN.test(item.title) ? 'chapter' : 'section'),
       pageIndex: item.pageIndex,
       blockIndex,
-      level: semantic?.level ?? item.level ?? 1,
+      level: item.level ?? semantic?.level ?? 1,
       confidence,
-      evidence: ['PDF outline destination', explicit ? 'recognized semantic label' : 'unconfirmed outline label'],
+      evidence: ['PDF outline destination', confirmed ? 'matching complete destination heading across font runs and lines' : explicit ? 'recognized semantic label' : 'unconfirmed outline label'],
       source: 'outline',
     });
   }
@@ -587,6 +677,28 @@ function detectSections(
     }
   }
   return { sections, suppressedNavigation };
+}
+
+function matchingOutlineBlock(item: NonNullable<PDFExtractionResult['outlines']>[number], blocks: InternalBlock[]): number {
+  if (item.pageIndex < 0) return -1;
+  // Publisher bookmarks often append the chapter author's name; it is printed
+  // as a separate byline, not part of the heading's typography.
+  const withoutByline = item.title.replace(/\s+\((?=[^()]*\p{L})[^()]+\)\s*$/u, '');
+  for (let index = 0; index < blocks.length; index++) {
+    const first = blocks[index]!;
+    if (first.anchor.pageIndex !== item.pageIndex || first.kind !== 'heading') continue;
+    let text = '';
+    for (let next = index; next < Math.min(index + 6, blocks.length); next++) {
+      const block = blocks[next]!;
+      if (block.anchor.pageIndex !== item.pageIndex || block.kind !== 'heading') break;
+      if (next > index && (Math.abs((block.fontSize ?? 0) - (first.fontSize ?? 0)) > 1
+        || (block.bounds?.y ?? 0) - (blocks[next - 1]!.bounds?.y ?? 0) > (first.fontSize ?? 11) * 2.5)) break;
+      text += (text ? ' ' : '') + block.text;
+      const withoutFootnote = text.replace(/(?<=\p{L})\d{1,2}$/u, '');
+      if (Math.max(titleSimilarity(withoutFootnote, item.title), titleSimilarity(withoutFootnote, withoutByline)) >= 0.84) return index;
+    }
+  }
+  return -1;
 }
 
 function expandedHeadingTitle(blocks: InternalBlock[], blockIndex: number, kind: SemanticSectionKind): string {
@@ -663,7 +775,7 @@ function classifySectionTitle(value: string): { kind: SemanticSectionKind; level
   const text = normalizeKey(value);
   if (/^(?:cover)$/.test(text)) return { kind: 'cover', level: 0 };
   if (/^(?:title page)$/.test(text)) return { kind: 'titlePage', level: 0 };
-  if (/^(?:copyright|imprint|license|publication details?)\b/.test(text)) return { kind: 'copyright', level: 0 };
+  if (/^(?:copyright|imprint|license|publication details?)$/.test(text)) return { kind: 'copyright', level: 0 };
   if (/^(?:dedication)$/.test(text)) return { kind: 'dedication', level: 0 };
   if (/^(?:(?:table of )?contents)$/.test(text)) return { kind: 'contents', level: 0 };
   if (/^(?:foreword)\b/.test(text)) return { kind: 'foreword', level: 1 };
@@ -676,9 +788,9 @@ function classifySectionTitle(value: string): { kind: SemanticSectionKind; level
   if (/^(?:epilogue|afterword)\b/.test(text)) return { kind: 'epilogue', level: 1 };
   if (/^(?:appendix|appendices)\b/.test(text)) return { kind: 'appendix', level: 1 };
   if (/^(?:glossary|list of abbreviations)\b/.test(text)) return { kind: 'glossary', level: 1 };
-  if (/^(?:notes|endnotes|footnotes)\b/.test(text)) return { kind: 'notes', level: 1 };
-  if (/^(?:bibliography|references|works cited|further reading)\b/.test(text)) return { kind: 'bibliography', level: 1 };
-  if (/^(?:index)\b/.test(text)) return { kind: 'index', level: 1 };
+  if (/^(?:notes|endnotes|footnotes)(?: to (?:chapter|part) .+)?$/.test(text)) return { kind: 'notes', level: 1 };
+  if (/^(?:(?:selected )?bibliography|references|works cited|further reading)$/.test(text)) return { kind: 'bibliography', level: 1 };
+  if (/^(?:(?:subject|author|name) )?index$/.test(text)) return { kind: 'index', level: 1 };
   if (/^(?:about (?:the )?author|contributors?|author biography)\b/.test(text)) return { kind: 'aboutAuthor', level: 1 };
   if (/^(?:colophon)\b/.test(text)) return { kind: 'colophon', level: 1 };
   return undefined;
@@ -838,7 +950,8 @@ function isPlausibleTitle(value: string): boolean {
   const text = cleanLine(value);
   if (text.length < 3 || text.length > 180 || /^(?:untitled|unknown|document|ebook|book)$/iu.test(text)) return false;
   if (/^(?:copyright|contents|table of contents|isbn|published by|chapter|part)\b/iu.test(text)) return false;
-  return text.split(/\s+/u).length <= 24 && !TERMINAL_PROSE.test(text);
+  if (/\.(?:pdf|indd|docx?|ps|eps)$|^(?:microsoft word|untitled[-\s\d]|\d{5,}[_-])/iu.test(text)) return false;
+  return text.split(/\s+/u).length <= 28 && !/\.\s|\.$/u.test(text);
 }
 
 function furnitureKey(value: string): string {
@@ -857,14 +970,18 @@ function cleanHeading(value: string): string {
 }
 
 function cleanLine(value: string): string {
-  return value.replace(/[\u0000\u0008\uFFFD]/gu, ' ').replace(/\s+/gu, ' ').trim();
+  return value.replace(/[\u00ad\uFEFF\u200B]/gu, '').replace(/[\u0000\u0008\uFFFD]/gu, ' ').replace(/\s+/gu, ' ').trim();
 }
 
 function joinSpans(spans: PDFTextSpan[]): string {
   let result = '';
+  let previous: PDFTextSpan | undefined;
   for (const span of spans) {
-    if (result && span.sourceStart > 0 && !/\s$/u.test(result) && !/^\s|^[,.;:!?)}\]]/u.test(span.text)) result += ' ';
+    const gap = previous ? span.bounds.x - previous.bounds.x - previous.bounds.width : 0;
+    if (result && (span.sourceStart > (previous?.sourceEnd ?? 0) || gap > Math.min(span.fontSize, previous?.fontSize ?? span.fontSize) * 0.15)
+      && !/\s$/u.test(result) && !/^\s|^[,.;:!?)}\]]/u.test(span.text)) result += ' ';
     result += span.text;
+    previous = span;
   }
   return result;
 }

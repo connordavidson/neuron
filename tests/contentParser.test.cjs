@@ -13,7 +13,7 @@ function page(index, lines, label = String(index + 1)) {
   const spans = lines.map((line, lineIndex) => {
     const text = typeof line === 'string' ? line : line.text;
     const fontSize = typeof line === 'string' ? 11 : line.fontSize ?? 11;
-    const y = typeof line === 'string' ? 80 + lineIndex * 18 : line.y ?? 80 + lineIndex * 18;
+    const y = typeof line === 'string' ? (/^\d+$/.test(line) ? 750 : 80 + lineIndex * 18) : line.y ?? 80 + lineIndex * 18;
     const x = typeof line === 'string' ? 68 : line.x ?? 68;
     const sourceEnd = sourceStart + text.length;
     const span = {
@@ -126,6 +126,8 @@ test('two-column pages read down the left column before the right column', async
     { text: 'and ends in this column.', x: 330, y: 210 },
   ]);
   body.spans[0].bounds.width = 516;
+  // pdfplumber and PDFKit can assign both columns a shared baseline index.
+  for (let index = 5; index < body.spans.length; index++) body.spans[index].lineIndex = index - 4;
   const extraction = {
     pages: [title.text, body.text],
     structuredPages: [title, body],
@@ -136,4 +138,123 @@ test('two-column pages read down the left column before the right column', async
   const readingText = parsed.readingUnits.map(unit => unit.text).join(' ');
   assert.ok(readingText.indexOf('Left sentence two') < readingText.indexOf('Right sentence begins'));
   assert.ok(parsed.readingUnits.every(unit => unit.sentenceCount <= 2));
+});
+
+test('title reconstruction joins wrapped cover lines and ignores production metadata and series labels', async () => {
+  const cover = page(0, [
+    { text: 'Lecture Notes in Testing', fontSize: 18, y: 25 },
+    { text: 'Alex Reader · Editor', fontSize: 20, y: 90 },
+    { text: 'Uncertainty in', fontSize: 50, y: 180 },
+    { text: 'Complex Systems', fontSize: 50, y: 235 },
+  ]);
+  const parsed = await parseEbook({ pages: [cover.text], structuredPages: [cover], metadata: { title: '123456_En_Print.indd' } }, 'upload.pdf');
+  assert.equal(parsed.metadata.title.value, 'Uncertainty in Complex Systems');
+});
+
+test('repeated interior title separates a same-size cover subtitle from the book name', async () => {
+  const cover = page(0, [
+    { text: 'Animating Change', fontSize: 24, y: 200 },
+    { text: 'A Study of Motion', fontSize: 24, y: 230 },
+    { text: 'Alex Reader', fontSize: 16, y: 290 },
+  ]);
+  const title = page(1, [
+    { text: 'Alex Reader', fontSize: 16, y: 80 },
+    { text: 'Animating Change', fontSize: 32, y: 150 },
+    { text: 'A Study of Motion', fontSize: 14, y: 220 },
+  ]);
+  const parsed = await parseEbook({ pages: [cover.text, title.text], structuredPages: [cover, title] }, 'file.pdf');
+  assert.equal(parsed.metadata.title.value, 'Animating Change');
+});
+
+test('font changes inside words do not insert spaces', async () => {
+  const body = page(0, [{ text: 'CHAPTER ONE', fontSize: 20 }, 'Neurochemical activity continues. Another sentence follows.']);
+  const original = body.spans[1];
+  const prefix = { ...original, text: 'Neuro', sourceEnd: original.sourceStart + 5, bounds: { ...original.bounds, width: 25 } };
+  const suffix = { ...original, text: original.text.slice(5), sourceStart: prefix.sourceEnd,
+    italic: true, bounds: { ...original.bounds, x: original.bounds.x + 25, width: original.bounds.width - 25 } };
+  body.spans.splice(1, 1, prefix, suffix);
+  const parsed = await parseEbook({ pages: [body.text], structuredPages: [body] }, 'book.pdf');
+  assert.match(parsed.paragraphs.join(' '), /Neurochemical activity/);
+});
+
+test('wrapped unnumbered outline chapter restores prose after a previous bibliography', async () => {
+  const pages = [
+    page(0, [{ text: 'CHAPTER ONE', fontSize: 20 }, 'One begins. Two ends.']),
+    page(1, [{ text: 'References', fontSize: 20 }, 'Reader, A. A citation.']),
+    page(2, [{ text: 'A Different Kind', fontSize: 20 }, { text: 'of Beginning', fontSize: 20 }, 'Body text returns here. It must remain readable.']),
+  ];
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages,
+    outlines: [{ title: 'A Different Kind of Beginning', pageIndex: 2, level: 0 }] }, 'book.pdf');
+  assert.ok(parsed.chapters.some(c => c.title === 'A Different Kind of Beginning'));
+  assert.match(parsed.paragraphs.join(' '), /Body text returns here/);
+  assert.ok(!parsed.paragraphs.join(' ').includes('A citation'));
+});
+
+test('chapter-local running headers are removed without requiring a quarter of the whole book', async () => {
+  const pages = Array.from({ length: 24 }, (_, index) => page(index, [
+    { text: index < 4 ? 'First chapter running header' : 'Later chapter running header', fontSize: 10, y: 25 },
+    ...(index === 0 ? [{ text: 'CHAPTER ONE', fontSize: 20, y: 140 }] : []),
+    { text: 'The narrative continues normally. A second sentence follows.', y: 200 },
+  ]));
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages }, 'book.pdf');
+  assert.ok(!parsed.paragraphs.join(' ').includes('running header'));
+  assert.equal(parsed.diagnostics.counts.removedFurniture, 24);
+});
+
+test('the word index in a body sentence does not start an index section', async () => {
+  const body = page(0, [{ text: 'CHAPTER ONE', fontSize: 20 },
+    'The index reflects a change', 'in the results. The story continues.', 'References to these findings appear later.']);
+  const parsed = await parseEbook({ pages: [body.text], structuredPages: [body] }, 'book.pdf');
+  assert.ok(!parsed.sections.some(s => ['index', 'bibliography'].includes(s.kind)));
+  assert.match(parsed.paragraphs.join(' '), /References to these findings/);
+});
+
+test('outline bylines and invisible PDF separators do not hide the next chapter', async () => {
+  const pages = [page(0, [{ text: 'References', fontSize: 20 }, 'A citation stays secondary.']),
+    page(1, [{ text: 'How Can Systems Change?', fontSize: 20 }, 'New prose must be retained. Another sentence follows.'])];
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages,
+    outlines: [{ title: 'How Can Sys\uFEFFtems Change? (Alex Reader)', pageIndex: 1, level: 0 }] }, 'book.pdf');
+  assert.ok(parsed.chapters.some(c => c.title.includes('How Can Systems Change?')));
+  assert.match(parsed.paragraphs.join(' '), /New prose must be retained/);
+});
+
+test('small abstract text does not turn adjacent normal body lines into headings', async () => {
+  const pages = [page(0, [{ text: 'CHAPTER ONE', fontSize: 20 },
+    'The ordinary body has enough characters to establish the document style. It continues here.']),
+    page(1, [
+      ...Array.from({ length: 8 }, (_, i) => ({ text: 'Abstract material in small type. It is smaller than the main body.', fontSize: 9, y: 90 + i * 12 })),
+      { text: 'This ordinary body line must not become a heading', fontSize: 11, y: 250 },
+      { text: 'merely because the abstract is printed smaller. The body continues.', fontSize: 11, y: 268 },
+    ]),
+    ...Array.from({ length: 4 }, (_, i) => page(i + 2, ['More ordinary body material establishes the dominant document font. It continues here.'])),
+  ];
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages }, 'book.pdf');
+  assert.match(parsed.paragraphs.join(' '), /This ordinary body line must not become a heading merely because/);
+});
+
+test('metadata can reconcile a short title printed in different font sizes', async () => {
+  const cover = page(0, [{ text: 'Made of', fontSize: 36, x: 160, y: 80 },
+    { text: 'Clay', fontSize: 90, x: 300, y: 120 }]);
+  const parsed = await parseEbook({ pages: [cover.text], structuredPages: [cover], metadata: { title: 'Made of Clay' } }, 'book.pdf');
+  assert.equal(parsed.metadata.title.value, 'Made of Clay');
+});
+
+test('a narrow repeated gutter still separates columns without treating ordinary word gaps as gutters', async () => {
+  const body = page(0, [{ text: 'CHAPTER ONE', fontSize: 20, y: 80 },
+    ...Array.from({ length: 4 }, (_, i) => ({ text: `Left column line ${i} continues here.`, x: 48, y: 150 + i * 20 })),
+    ...Array.from({ length: 4 }, (_, i) => ({ text: `Right column line ${i} continues here.`, x: 300, y: 150 + i * 20 })),
+  ]);
+  body.spans[0].bounds.width = 516;
+  for (let i = 1; i <= 4; i++) body.spans[i].bounds.width = 240;
+  for (let i = 5; i <= 8; i++) body.spans[i].lineIndex = i - 4;
+  const parsed = await parseEbook({ pages: [body.text], structuredPages: [body] }, 'book.pdf');
+  const text = parsed.paragraphs.join(' ');
+  assert.ok(text.indexOf('Left column line 3') < text.indexOf('Right column line 0'));
+
+  const plain = page(0, [{ text: 'CHAPTER ONE', fontSize: 20 }, 'Wide word spacing must stay together. Another sentence follows.']);
+  const span = plain.spans[1];
+  plain.spans.splice(1, 1, { ...span, text: 'Wide', sourceEnd: span.sourceStart + 4, bounds: { ...span.bounds, width: 20 } },
+    { ...span, text: span.text.slice(5), sourceStart: span.sourceStart + 5, bounds: { ...span.bounds, x: span.bounds.x + 32 } });
+  const single = await parseEbook({ pages: [plain.text], structuredPages: [plain] }, 'book.pdf');
+  assert.match(single.paragraphs.join(' '), /Wide word spacing must stay together/);
 });
