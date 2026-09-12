@@ -181,10 +181,6 @@ export function ReaderScreen({
           />
         ) : null}
 
-        <View pointerEvents="none" accessible={false} style={styles.pageFooter}>
-          <View style={[styles.swipeCue, { backgroundColor: activeTheme.secondary + '55' }]} />
-        </View>
-
         <Animated.View
           pointerEvents={chromeVisible ? 'auto' : 'none'}
           style={[styles.topChrome, { opacity: chromeOpacity }]}
@@ -545,14 +541,6 @@ const styles = StyleSheet.create({
     maxWidth: 700,
     width: '100%',
   },
-  pageFooter: {
-    alignItems: 'center',
-    bottom: 22,
-    left: 30,
-    position: 'absolute',
-    right: 30,
-  },
-  swipeCue: { borderRadius: 2, height: 3, width: 34 },
   topChrome: {
     alignItems: 'center',
     flexDirection: 'row',
