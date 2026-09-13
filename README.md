@@ -16,6 +16,7 @@ neuron is a new type of reader. The current app, FlowReader, is a React Native i
 - Saves the visible reading page automatically, including when the app is backgrounded
 - Opens cached book content without reparsing or replacing it during a reading session
 - Measures reading progress by body-text word counts and retains PDF page numbers on new imports
+- Shows a slim right-side progress bar that fills from top to bottom, with chapter dots spaced by cumulative body-word counts; longer chapters occupy more of the bar
 - Includes paper, sepia, and night themes plus adjustable text sizing
 - Stores and searches a local book library
 - Sorts books by most recently read
@@ -44,13 +45,13 @@ For a physical iPhone, connect and trust it, enable Developer Mode, then run `np
 
 The importer requires a PDF with a selectable text layer. Image-only scans need OCR before import. PDF text often contains visual line breaks instead of semantic paragraphs. FlowReader joins continuous text within each chapter, uses Apple's on-device Natural Language sentence tokenizer, and filters its boundaries for PDF ellipses, closing quotes, dialogue attribution, and initials. Ellipses such as `...`, `. . .`, and `…` are treated as a unit, never as individual sentences. Each complete reading page pairs two detected sentences; a final leftover sentence may stand alone. Ambiguous punctuation can still require interpretation.
 
-Parser changes apply automatically to new imports. Existing books retain their card layout and bookmark. Use **Improve parsing** in Reading settings to opt into a reparse; the app installs the new layout only when it can remap the current source anchor with at least 90% confidence.
+Parser changes apply automatically to new imports. Existing books retain their card layout and bookmark. Outdated chapter navigation refreshes separately after opening a book, without rebuilding its reading pages. Use **Improve parsing** in Reading settings to opt into a full reparse; the app installs the new layout only when it can remap the current source anchor with at least 90% confidence. A full reparse takes precedence over older chapter-only metadata when the book is reopened.
 
 Copyright and other front matter can be reached from the section picker or by scrolling backward from the reading start. Dedicated notes and credits remain available at the back. Optional copyright, notes, bibliography, and index text does not add to the main reading-progress denominator.
 
-All reading pages use the selected font size. Exceptionally long sentence pairs can scroll within their page. The swipe indicator stays at the bottom of the reader. A chapter's final unpaired sentence also stands alone so the next chapter starts on a fresh card.
+All reading pages use the selected font size. Exceptionally long sentence pairs can scroll within their page. The progress bar stays in the right margin and hides with the reader controls. Completed chapter dots are filled and upcoming dots are outlined; tightly packed boundaries become small ticks at their true positions. Books without detected chapters show a continuous bar. A chapter's final unpaired sentence also stands alone so the next chapter starts on a fresh card.
 
-Uncertain navigation candidates are suppressed rather than presented as chapters. Every accepted metadata and structure value stores confidence and evidence, and every block and reading unit links back to its original PDF page and source range. PDF structure varies, so missing or unreliable text may still produce incomplete navigation; image-only PDFs are not supported.
+Uncertain navigation candidates are suppressed rather than presented as chapters. Bookmarked chapter titles are checked against their destination text even when font geometry is unavailable, including numbered titles split across lines. With a confirmed chapter outline, unlisted internal Part headings between chapters stay within their containing chapter. Every accepted metadata and structure value stores confidence and evidence, and every block and reading unit links back to its original PDF page and source range. PDF structure varies, so missing or unreliable text may still produce incomplete navigation; image-only PDFs are not supported.
 
 ## Parser benchmark
 
@@ -72,4 +73,6 @@ The locked scorecard gates title accuracy, chapter/part precision and recall, se
 
 ## Checks
 
-Run `npm test` for parser, sentence, resume, progress, persistence, and page-alignment regressions; run `npm run typecheck` for TypeScript checks. After installing the Python requirements, `npm run test:corpus` generates and verifies temporary fixture PDFs, extraction JSON, rendered pages, control layouts, evaluation gates, and a scorecard. On iOS, verify opening a saved book deep into the text, swiping both directions, jumping to a section, closing/reopening, and restarting the app. Each reopen should restore the same text and percentage. Check long text and rotation as well: text must remain accessible and the indicator must stay at the bottom.
+The [local PDF import audit](design/progress-mockups/import-validation.md) records the current failures found in the Dalio PDFs and 7 Habits. With the private PDF/extraction manifest available, `node tools/validate_local_imports.cjs tmp/import-validation/manifest.json tmp/import-validation/results.json` checks the expected chapter pages in both extraction modes and returns a failing status for unresolved defects. These private-file checks run separately from the portable unit suite.
+
+Run `npm test` for parser, sentence, resume, progress, persistence, and page-alignment regressions; run `npm run typecheck` for TypeScript checks. After installing the Python requirements, `npm run test:corpus` generates and verifies temporary fixture PDFs, extraction JSON, rendered pages, control layouts, evaluation gates, and a scorecard. On iOS, verify opening a saved book deep into the text, swiping both directions, jumping to a section, closing/reopening, and restarting the app. Each reopen should restore the same text and percentage. Check long text and resizing as well: text must remain accessible and the progress bar must stay clear of the prose and controls. Check chapter marker spacing, paper/sepia/night contrast, and tapping the page to hide/show the bar. VoiceOver should expose the book percentage and current chapter.

@@ -1,6 +1,6 @@
 import type { Chapter } from '../types';
 
-export const CHAPTER_VERSION = 3;
+export const CHAPTER_VERSION = 4;
 export type OutlineItem = { title: string; pageIndex: number; level?: number };
 export type SourceChapter = Omit<Chapter, 'paragraphIndex'> & { pageIndex: number; lineIndex: number; endLineIndex: number };
 export type BookStructureOptions = {

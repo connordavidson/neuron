@@ -26,7 +26,7 @@ import {
 
 export { hashContext, remapReadingPosition, sourceAnchorForLegacy } from './readingUnits';
 
-export const CONTENT_PARSER_VERSION = 8;
+export const CONTENT_PARSER_VERSION = 9;
 
 export type SentenceTokenizer = (texts: string[]) => Promise<number[][]>;
 
@@ -563,7 +563,7 @@ function detectSections(
 ): { sections: SectionNode[]; suppressedNavigation: ParseDiagnostics['suppressedNavigation'] } {
   const candidates: SectionCandidate[] = [];
   const outlineItems = extraction.outlines ?? [];
-  const outlineMatches = outlineItems.map((item) => ({ item, blockIndex: matchingOutlineBlock(item, blocks) }));
+  const outlineMatches = outlineItems.map((item) => ({ item, blockIndex: matchingOutlineBlock(item, blocks, pages) }));
   const numberedOutlineLevels = outlineItems.filter((item) => /^\s*(?:one|two|three|\d+|[IVX]+)\s*[:.]\s+/iu.test(item.title)).map((item) => item.level ?? 0);
   const chapterOutlineLevel = numberedOutlineLevels.length >= 3 ? Math.min(...numberedOutlineLevels) : -1;
   const numberedOutline = (item: typeof outlineItems[number] | undefined) => Boolean(item && (item.level ?? 0) === chapterOutlineLevel
@@ -626,7 +626,7 @@ function detectSections(
       blockIndex,
       level: item.level ?? semantic?.level ?? 1,
       confidence,
-      evidence: ['PDF outline destination', confirmed ? 'matching complete destination heading across font runs and lines' : explicit ? 'recognized semantic label' : 'unconfirmed outline label'],
+      evidence: ['PDF outline destination', confirmed ? 'matching complete destination title across extracted lines' : explicit ? 'recognized semantic label' : 'unconfirmed outline label'],
       source: 'outline',
     });
   }
@@ -648,10 +648,27 @@ function detectSections(
       candidate.evidence.push('contributor material occurs before the first confirmed body section');
     }
   }
-  const deduped = dedupeCandidates(candidates);
+  // A complete chapter outline also establishes hierarchy. Unlisted "Part"
+  // headings between its chapters are internal divisions, not book-level parts.
+  // Keep their prose inside the containing chapter and out of the chapter picker.
+  const outlineChapters = candidates.filter((candidate) => candidate.source === 'outline'
+    && candidate.kind === 'chapter' && candidate.confidence >= 0.62)
+    .sort((a, b) => a.blockIndex - b.blockIndex);
+  const internalParts = new Set(candidates.filter((candidate) => {
+    if (candidate.kind !== 'part' || candidate.source !== 'heading' || outlineChapters.length < 3) return false;
+    const previous = outlineChapters.filter((chapter) => chapter.blockIndex < candidate.blockIndex).at(-1);
+    const next = outlineChapters.find((chapter) => chapter.blockIndex > candidate.blockIndex);
+    return previous && next && previous.level === next.level;
+  }));
+  const deduped = dedupeCandidates(candidates.filter((candidate) => !internalParts.has(candidate)));
   const suppressedNavigation = deduped.filter((candidate) => NAVIGABLE_KINDS.has(candidate.kind) && candidate.confidence < 0.62)
     .map((candidate) => ({ title: candidate.title, pageIndex: candidate.pageIndex, confidence: candidate.confidence,
       evidence: candidate.evidence, reason: 'confidence below navigation threshold' }));
+  for (const candidate of internalParts) {
+    suppressedNavigation.push({ title: candidate.title, pageIndex: candidate.pageIndex, confidence: candidate.confidence,
+      evidence: [...candidate.evidence, 'confirmed chapter outline brackets this internal division'],
+      reason: 'internal part heading within a chapter, absent from the book outline' });
+  }
   const accepted = deduped.filter((candidate) => !NAVIGABLE_KINDS.has(candidate.kind) || candidate.confidence >= 0.62)
     .sort((a, b) => a.blockIndex - b.blockIndex || a.level - b.level || b.confidence - a.confidence);
   const ordered = enforceDocumentOrder(accepted, suppressedNavigation);
@@ -699,7 +716,11 @@ function detectSections(
   return { sections, suppressedNavigation };
 }
 
-function matchingOutlineBlock(item: NonNullable<PDFExtractionResult['outlines']>[number], blocks: InternalBlock[]): number {
+function matchingOutlineBlock(
+  item: NonNullable<PDFExtractionResult['outlines']>[number],
+  blocks: InternalBlock[],
+  pages: PDFPageExtraction[],
+): number {
   if (item.pageIndex < 0) return -1;
   // Publisher bookmarks often append the chapter author's name; it is printed
   // as a separate byline, not part of the heading's typography.
@@ -722,6 +743,26 @@ function matchingOutlineBlock(item: NonNullable<PDFExtractionResult['outlines']>
       if ([item.title, withoutByline, withoutOrdinal].some((title) => compact(title) === compact(withoutFootnote))) return index;
       if (Math.max(titleSimilarity(withoutFootnote, item.title), titleSimilarity(withoutFootnote, withoutByline),
         titleSimilarity(withoutFootnote, withoutOrdinal)) >= 0.84) return index;
+    }
+  }
+  // Older native builds can supply text and bookmarks without font geometry.
+  // In that case headings may have merged into prose blocks. Confirm the exact
+  // title on the bookmark's destination using the original line boundaries;
+  // don't relax the confidence gate or search arbitrary body-text substrings.
+  const compact = (value: string) => normalizeKey(value).replace(/\s+/gu, '');
+  const titles = new Set([item.title, withoutByline, withoutOrdinal].map(compact).filter(Boolean));
+  const lines = [...(pages[item.pageIndex]?.text ?? '').matchAll(/[^\r\n]+/gu)]
+    .filter((line) => line[0].trim());
+  for (let start = 0; start < Math.min(8, lines.length); start++) {
+    let text = '';
+    for (let end = start; end < Math.min(start + 6, lines.length); end++) {
+      text += (text ? ' ' : '') + lines[end]![0];
+      if (!titles.has(compact(text.replace(/(?<=\p{L})\d{1,2}$/u, '')))) continue;
+      const sourceStart = lines[start]!.index!;
+      const sourceEnd = lines[end]!.index! + lines[end]![0].length;
+      const blockIndex = blocks.findIndex((block) => block.anchor.pageIndex === item.pageIndex
+        && block.anchor.sourceStart < sourceEnd && block.anchor.sourceEnd > sourceStart);
+      if (blockIndex >= 0) return blockIndex;
     }
   }
   return -1;
@@ -826,7 +867,8 @@ function classifySectionTitle(value: string): { kind: SemanticSectionKind; level
 function dedupeCandidates(candidates: SectionCandidate[]): SectionCandidate[] {
   const result: SectionCandidate[] = [];
   for (const candidate of [...candidates].sort((a, b) => a.blockIndex - b.blockIndex || b.confidence - a.confidence)) {
-    const duplicate = result.find((item) => Math.abs(item.blockIndex - candidate.blockIndex) <= 1
+    const duplicate = result.find((item) => item.pageIndex === candidate.pageIndex
+      && Math.abs(item.blockIndex - candidate.blockIndex) <= 1
       && (item.kind === candidate.kind || titleSimilarity(item.title, candidate.title) >= 0.72));
     if (!duplicate) result.push(candidate);
     else if (candidate.confidence > duplicate.confidence) Object.assign(duplicate, candidate);

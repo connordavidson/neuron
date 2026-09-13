@@ -68,6 +68,19 @@ test('chapter navigation maps to existing cards without changing their content',
   assert.deepEqual(paragraphs, original);
 });
 
+test('navigation-only repair restores numbered outline chapters without promoting unlisted internal parts', () => {
+  const pages = ['Contents\nOne FIRST\nTwo SECOND\nThree THIRD', 'One\nFirst\nFirst chapter begins.',
+    'PART I: INTERNAL DETAIL\nStill inside the first chapter.', 'Two\nSecond\nSecond chapter begins.',
+    'Three\nThird\nThird chapter begins.'];
+  const paragraphs = ['First chapter begins.', 'Still inside the first chapter.', 'Second chapter begins.', 'Third chapter begins.'];
+  const snapshot = [...paragraphs];
+  const outlines = [{ title: 'One: FIRST', pageIndex: 1, level: 0 }, { title: 'Two: SECOND', pageIndex: 3, level: 0 },
+    { title: 'Three: THIRD', pageIndex: 4, level: 0 }];
+  const repaired = detectBookStructure(paragraphs, { sourcePages: pages, outlines, paragraphPages: [1, 2, 3, 4] });
+  assert.deepEqual(repaired.chapters.map(c => [c.title, c.paragraphIndex]), [['One: FIRST', 0], ['Two: SECOND', 2], ['Three: THIRD', 3]]);
+  assert.deepEqual(paragraphs, snapshot);
+});
+
 test('new imports do not pair sentences across chapter boundaries', () => {
   const pages = ['Chapter 1\nFirst sentence. Second sentence. Third sentence.', 'Chapter 2\nFourth sentence. Fifth sentence.'];
   const records = paragraphizePagesWithMetadata(pages, detectSourceChapters(pages));

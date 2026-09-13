@@ -442,6 +442,7 @@ export default function App() {
             key={`${activeBook.summary.id}:${activeBook.content.layoutRevision ?? 'legacy'}`}
             book={activeBook.summary}
             content={activeBook.content}
+            readingOffsets={activeBook.offsets}
             isImprovingParsing={improvingBookID === activeBook.summary.id}
             onImproveParsing={improveParsing}
             updatingChapters={updatingChapterIDs.includes(activeBook.summary.id)}

@@ -161,3 +161,29 @@ test('queued disk saves keep the latest bookmark and percentage across a restart
   const storedContent = await restartedStorage.loadBookContent(book.id);
   assert.deepEqual(storedContent, { ...content, chapterVersion: undefined });
 });
+
+test('reopening uses newer navigation repairs but cannot overwrite a full reparse with stale chapters', async () => {
+  const data = new Map();
+  const storage = loadSource('src/lib/storage.ts', {
+    '@react-native-async-storage/async-storage': {
+      getItem: async key => data.get(key) ?? null,
+      setItem: async (key, value) => data.set(key, value),
+    },
+    'expo-file-system': {},
+  });
+  const repaired = [{ title: 'Correct chapter', paragraphIndex: 1 }];
+  await storage.storeBook({ ...book, ...content, chapterVersion: 3 });
+  await storage.storeChapterMetadata(book.id, { chapters: repaired, chapterVersion: 4 });
+  const refreshed = await storage.loadBookContent(book.id);
+  assert.deepEqual(refreshed.chapters, repaired);
+  assert.deepEqual(refreshed.paragraphs, content.paragraphs);
+  assert.equal(refreshed.readingStart, content.readingStart);
+
+  const reparsed = [{ title: 'Full reparse chapter', paragraphIndex: 2 }];
+  for (const chapterVersion of [4, 5]) {
+    await storage.storeBookContent(book.id, { ...content, chapters: reparsed, chapterVersion });
+    const reopened = await storage.loadBookContent(book.id);
+    assert.deepEqual(reopened.chapters, reparsed);
+    assert.equal(reopened.chapterVersion, chapterVersion);
+  }
+});
