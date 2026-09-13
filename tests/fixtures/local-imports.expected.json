@@ -1,0 +1,84 @@
+[
+  {
+    "slug": "changing-world-order",
+    "sha256": "9e0b1858e99793c33b0ca0048e8641271bfc786a2090e132fbcf90e88012193b",
+    "pdfPages": 112,
+    "readingStartPDF": 2,
+    "chapters": [
+      { "titlePattern": "^Chapter 1\\b", "pdfPage": 2 },
+      { "titlePattern": "^Chapter 2\\b", "pdfPage": 10 },
+      { "titlePattern": "^Chapter 3\\b", "pdfPage": 14 },
+      { "titlePattern": "^Chapter 4\\b", "pdfPage": 15 },
+      { "titlePattern": "^Chapter 5\\b", "pdfPage": 21 },
+      { "titlePattern": "^Chapter 6\\b", "pdfPage": 26 },
+      { "titlePattern": "^Chapter 7\\b", "pdfPage": 29 },
+      { "titlePattern": "^Chapter 8\\b", "pdfPage": 39 },
+      { "titlePattern": "^Chapter 9\\b", "pdfPage": 42 },
+      { "titlePattern": "^Chapter 10\\b", "pdfPage": 54 },
+      { "titlePattern": "^Chapter 11\\b", "pdfPage": 70 },
+      { "titlePattern": "^Chapter 12\\b", "pdfPage": 79 },
+      { "titlePattern": "^Chapter 13\\b", "pdfPage": 85 },
+      { "titlePattern": "^Chapter 14\\b", "pdfPage": 86 }
+    ],
+    "forbiddenNavigation": []
+  },
+  {
+    "slug": "how-countries-go-broke",
+    "sha256": "8518a40505e939fab7a15f7de1d979988981c9a1baabc1f38815364370e8eb75",
+    "pdfPages": 400,
+    "readingStartPDF": 11,
+    "chapters": [
+      { "titlePattern": "^Chapter 1\\b", "pdfPage": 23 },
+      { "titlePattern": "^Chapter 2\\b", "pdfPage": 45 },
+      { "titlePattern": "^Chapter 3\\b", "pdfPage": 75 },
+      { "titlePattern": "^Chapter 4\\b", "pdfPage": 107 },
+      { "titlePattern": "^Chapter 5\\b", "pdfPage": 115 },
+      { "titlePattern": "^Chapter 6\\b", "pdfPage": 145 },
+      { "titlePattern": "^Chapter 7\\b", "pdfPage": 155 },
+      { "titlePattern": "^Chapter 8\\b", "pdfPage": 173 },
+      { "titlePattern": "^Chapter 9\\b", "pdfPage": 197 },
+      { "titlePattern": "^Chapter 10\\b", "pdfPage": 205 },
+      { "titlePattern": "^Chapter 11\\b", "pdfPage": 223 },
+      { "titlePattern": "^Chapter 12\\b", "pdfPage": 233 },
+      { "titlePattern": "^Chapter 13\\b", "pdfPage": 255 },
+      { "titlePattern": "^Chapter 14\\b", "pdfPage": 265 },
+      { "titlePattern": "^Chapter 15\\b", "pdfPage": 277 },
+      { "titlePattern": "^Chapter 16\\b", "pdfPage": 299 },
+      { "titlePattern": "^Chapter 17\\b", "pdfPage": 335 },
+      { "titlePattern": "^Chapter 18\\b", "pdfPage": 345 },
+      { "titlePattern": "^Chapter 19\\b", "pdfPage": 369 }
+    ],
+    "forbiddenNavigation": [{ "titlePattern": "^Part\\b", "firstPDFPage": 8, "lastPDFPage": 9 }]
+  },
+  {
+    "slug": "big-debt-crises",
+    "sha256": "c1c715fc7a08462e9b8c595e7b231c3da0cf8e31a016f6fb26d5be08ed8b393a",
+    "pdfPages": 471,
+    "readingStartPDF": 7,
+    "chapters": [
+      { "titlePattern": "^German Debt Crisis and Hyperinflation", "pdfPage": 70 },
+      { "titlePattern": "^US Debt Crisis and Adjustment.*1928", "pdfPage": 112 },
+      { "titlePattern": "^US Debt Crisis and Adjustment.*2007", "pdfPage": 168 }
+    ],
+    "forbiddenNavigation": [
+      { "titlePattern": "^Part 2", "firstPDFPage": 165, "lastPDFPage": 165 },
+      { "titlePattern": "^Part 3", "firstPDFPage": 254, "lastPDFPage": 471 }
+    ]
+  },
+  {
+    "slug": "seven-habits",
+    "sha256": "7ebfab969b575fd823621a1e80b9a118247284e53c272070f3bbf4ec10e7f87d",
+    "pdfPages": 219,
+    "readingStartPDF": 6,
+    "chapters": [
+      { "titlePattern": "^Habit 1\\b", "pdfPage": 36 },
+      { "titlePattern": "^Habit 2\\b", "pdfPage": 54 },
+      { "titlePattern": "^Habit 3\\b", "pdfPage": 92 },
+      { "titlePattern": "^Habit 4\\b", "pdfPage": 129 },
+      { "titlePattern": "^Habit 5\\b", "pdfPage": 151 },
+      { "titlePattern": "^Habit 6\\b", "pdfPage": 171 },
+      { "titlePattern": "^Habit 7\\b", "pdfPage": 188 }
+    ],
+    "forbiddenNavigation": [{ "titlePattern": "^Habit 3\\b", "firstPDFPage": 94, "lastPDFPage": 94 }]
+  }
+]

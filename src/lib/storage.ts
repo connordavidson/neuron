@@ -76,6 +76,9 @@ export async function loadBookContent(id: string): Promise<BookContent | null> {
     const parsed = JSON.parse(serialized) as Partial<BookContent>;
     let chapterMetadata: Partial<BookContent> = {};
     try { chapterMetadata = chapterData ? JSON.parse(chapterData) : {}; } catch { /* Keep original metadata. */ }
+    // A full reparse is authoritative over an equal/older navigation-only scan.
+    // Otherwise reopening could replace newly repaired chapters with stale ones.
+    if ((chapterMetadata.chapterVersion ?? 0) <= (parsed.chapterVersion ?? 0)) chapterMetadata = {};
     const paragraphs = repairQuotationBoundaries(Array.isArray(parsed.paragraphs) ? parsed.paragraphs : []);
     const storedChapters = Array.isArray(parsed.chapters) ? parsed.chapters : undefined;
     const storedReadingStart =

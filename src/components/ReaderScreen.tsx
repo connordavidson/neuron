@@ -17,13 +17,15 @@ import {
 import { StatusBar } from 'expo-status-bar';
 
 import { readerThemes } from '../theme';
-import { ReadingSession } from '../lib/readingPosition';
+import { ReadingSession, chapterProgressMarkers, readingProgressAtPosition } from '../lib/readingPosition';
 import { currentChapterAt } from '../lib/bookStructure';
+import { ReaderProgress } from './ReaderProgress';
 import type { BookContent, BookSummary, ReaderPreferences, ReaderThemeName } from '../types';
 
 type Props = {
   book: BookSummary;
   content: BookContent;
+  readingOffsets: number[];
   updatingChapters?: boolean;
   isImprovingParsing?: boolean;
   preferences: ReaderPreferences;
@@ -36,6 +38,7 @@ type Props = {
 export function ReaderScreen({
   book,
   content,
+  readingOffsets,
   updatingChapters = false,
   isImprovingParsing = false,
   preferences,
@@ -128,6 +131,9 @@ export function ReaderScreen({
     [],
   );
   const currentChapter = useMemo(() => currentChapterAt(content.chapters, currentParagraph), [content.chapters, currentParagraph]);
+  const progressMarkers = useMemo(() => chapterProgressMarkers(content, readingOffsets), [content, readingOffsets]);
+  const readingProgress = readingProgressAtPosition(content, readingOffsets, currentParagraph);
+  const progressPercent = readingProgress >= 1 ? 100 : Math.min(99, Math.round(readingProgress * 100));
   const currentUnit = content.readingUnits?.[currentParagraph];
   const currentSupplements = useMemo(() => {
     const ids = new Set(currentUnit?.supplementIds ?? []);
@@ -180,6 +186,21 @@ export function ReaderScreen({
             windowSize={5}
           />
         ) : null}
+
+        <Animated.View
+          accessibilityElementsHidden={!chromeVisible || showSettings || showChapters || showContext}
+          importantForAccessibility={!chromeVisible || showSettings || showChapters || showContext ? 'no-hide-descendants' : 'auto'}
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { opacity: chromeOpacity }]}
+        >
+          <ReaderProgress
+            fraction={readingProgress}
+            markers={progressMarkers}
+            label={`${progressPercent}% read${currentChapter ? `, ${currentChapter.title}` : ''}`}
+            viewportHeight={pageHeight}
+            theme={activeTheme}
+          />
+        </Animated.View>
 
         <Animated.View
           pointerEvents={chromeVisible ? 'auto' : 'none'}

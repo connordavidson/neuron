@@ -49,6 +49,38 @@ export function buildReadingOffsets(content: BookContent): number[] {
   return offsets;
 }
 
+export function readingProgressAtPosition(
+  content: BookContent,
+  offsets: number[],
+  position: number,
+): number {
+  const count = content.paragraphs.length;
+  const index = clampReadingIndex(position, count);
+  const start = clampReadingIndex(content.readingStart, count);
+  const total = offsets[count] ?? 0;
+  const atEnd = count > 1 && index === count - 1 && index > start;
+  const progress = atEnd ? 1 : total > 0 ? (offsets[index] ?? 0) / total : 0;
+  return Math.max(0, Math.min(1, progress));
+}
+
+// Use the same cumulative word offsets as the fill, so distances represent
+// chapter lengths even when reading pages contain different amounts of text.
+export function chapterProgressMarkers(content: BookContent, offsets: number[]): number[] {
+  const count = content.paragraphs.length;
+  const total = offsets[count] ?? 0;
+  if (total <= 0) return [];
+
+  const boundaries = content.chapters
+    .filter(({ kind, paragraphIndex }) => (kind === 'chapter' || kind == null)
+      && Number.isInteger(paragraphIndex) && paragraphIndex >= content.readingStart && paragraphIndex < count)
+    .map(({ paragraphIndex }) => (offsets[paragraphIndex] ?? 0) / total)
+    .filter((fraction) => fraction >= 0 && fraction < 1);
+
+  // With no reliable chapters, leave the rail continuous. Endpoints bound the
+  // first/last chapters without inventing evenly spaced intermediate markers.
+  return boundaries.length ? [...new Set([0, ...boundaries, 1])].sort((a, b) => a - b) : [];
+}
+
 export function summaryAtPosition(
   book: BookSummary,
   content: BookContent,
@@ -58,15 +90,12 @@ export function summaryAtPosition(
   const count = content.paragraphs.length;
   const index = clampReadingIndex(position, count);
   const start = clampReadingIndex(content.readingStart, count);
-  const total = offsets[count] ?? 0;
-  const atEnd = count > 1 && index === count - 1 && index > start;
-  const progress = atEnd ? 1 : total > 0 ? (offsets[index] ?? 0) / total : 0;
   return {
     ...book,
     currentParagraph: index,
     paragraphCount: count,
     readingStart: start,
-    readingProgress: Math.max(0, Math.min(1, progress)),
+    readingProgress: readingProgressAtPosition(content, offsets, index),
     currentSourcePage: content.paragraphPages?.[index] != null
       ? content.paragraphPages[index]! + 1
       : undefined,

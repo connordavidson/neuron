@@ -303,6 +303,66 @@ test('numbered outline titles match separate ordinal and title typography withou
   assert.ok(!parsed.chapters.some(c => c.title.includes('somebody')));
 });
 
+function textOnlyChapterFixture() {
+  return {
+    title: 'A Book With Chapters',
+    pages: [
+      'Contents\nOne THE BEGINNING\nTwo THE NEXT STAGE\nThree WHAT COMES AFTER?',
+      'One\nThe Beginning\nThe first chapter starts here. Another sentence follows.',
+      'PART I: A CLOSER LOOK\nThis is still the first chapter. The discussion continues.',
+      'Two\nThe Next S tage\nThe second chapter starts here. Another sentence follows.',
+      'Three\nWhat Comes\nAfter?\nThe final chapter starts here. Another sentence follows.',
+    ],
+    outlines: [
+      { title: 'Contents', pageIndex: 0, level: 0 },
+      { title: 'One: THE BEGINNING', pageIndex: 1, level: 0 },
+      { title: 'Two: THE NEXT STAGE', pageIndex: 3, level: 0 },
+      { title: 'Three: WHAT COMES AFTER?', pageIndex: 4, level: 0 },
+    ],
+  };
+}
+
+test('text-only extraction confirms split numbered chapter titles at their bookmark destinations', async () => {
+  const extraction = textOnlyChapterFixture();
+  const parsed = await parseEbook(extraction, 'book.pdf');
+  const chapters = parsed.chapters.filter(c => c.kind === 'chapter');
+  assert.deepEqual(chapters.map(c => [c.title, c.pageIndex]), extraction.outlines.slice(1).map(c => [c.title, c.pageIndex]));
+  assert.ok(!parsed.chapters.some(c => c.kind === 'part'));
+  assert.ok(parsed.diagnostics.suppressedNavigation.some(c => /internal part heading/.test(c.reason)));
+  const insidePart = parsed.readingUnits.find(u => u.text.includes('This is still the first chapter'));
+  assert.ok(insidePart);
+  assert.equal(insidePart.sectionId, chapters[0].sectionId);
+  assert.ok(parsed.paragraphs.join(' ').includes('The second chapter starts here.'));
+  const { buildReadingOffsets, chapterProgressMarkers } = loadSource('src/lib/readingPosition.ts');
+  const offsets = buildReadingOffsets(parsed);
+  assert.deepEqual(chapterProgressMarkers(parsed, offsets), [...chapters.map(c => offsets[c.paragraphIndex] / offsets.at(-1)), 1]);
+});
+
+test('complete chapter outlines keep internal Part headings out of structured navigation too', async () => {
+  const extraction = textOnlyChapterFixture();
+  const structuredPages = extraction.pages.map((text, index) => page(index,
+    text.split('\n').map((text, lineIndex) => ({ text, fontSize: lineIndex < 2 ? 24 : 11, y: 100 + lineIndex * 40 }))));
+  const parsed = await parseEbook({ ...extraction, structuredPages }, 'book.pdf');
+  assert.equal(parsed.chapters.filter(c => c.kind === 'chapter').length, 3);
+  assert.ok(!parsed.chapters.some(c => c.kind === 'part'));
+  assert.ok(parsed.paragraphs.join(' ').includes('This is still the first chapter.'));
+});
+
+test('bookmarked top-level parts remain navigable', async () => {
+  const extraction = textOnlyChapterFixture();
+  extraction.outlines.push({ title: 'PART I: A CLOSER LOOK', pageIndex: 2, level: 0 });
+  const parsed = await parseEbook(extraction, 'book.pdf');
+  assert.ok(parsed.chapters.some(c => c.kind === 'part' && c.pageIndex === 2));
+});
+
+test('a numbered outline with an incorrect destination is not accepted on numbering alone', async () => {
+  const extraction = textOnlyChapterFixture();
+  extraction.pages[4] = 'This paragraph mentions What Comes After? It is prose, not the promised chapter heading.';
+  const parsed = await parseEbook(extraction, 'book.pdf');
+  assert.ok(!parsed.chapters.some(c => c.title === 'Three: WHAT COMES AFTER?'));
+  assert.ok(parsed.diagnostics.suppressedNavigation.some(c => c.title === 'Three: WHAT COMES AFTER?' && c.confidence < 0.62));
+});
+
 test('contextual supplements still attach to their own section with indexed lookup', async () => {
   const parsed = await parseEbook(fixtureExtraction(), 'book.pdf');
   for (const supplement of parsed.supplements) {
