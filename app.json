@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "platforms": ["ios"],
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "flowreader",
     "ios": {
