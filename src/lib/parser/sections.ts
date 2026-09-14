@@ -1,3 +1,4 @@
+import { collectChapterEvidence, headingKey, tocPages as sourceTOCPages } from '../sourceNavigation';
 import type { PDFExtractionResult, PDFPageExtraction } from '../../../modules/pdf-text-extractor/src/PDFTextExtractor.types';
 import type { InternalBlock, SectionCandidate } from './types';
 import type { SectionNode, ParseDiagnostics, SemanticSectionKind } from '../../types';
@@ -21,6 +22,9 @@ export function detectSections(
   const tocEntries = parseTOCEntries(blocks);
   const tocPages = new Set(blocks.filter(({ text }) => /^(?:table of )?contents$/iu.test(text))
     .flatMap(({ anchor }) => [anchor.pageIndex, anchor.pageIndex + 1]));
+  const rawTables = sourceTOCPages(extraction.pages);
+  rawTables.forEach(page => tocPages.add(page));
+  const sourceEvidence = collectChapterEvidence(extraction.pages, extraction.outlines, extraction.pageLineFonts);
   const headingBlocks = blocks.map((block, blockIndex) => ({ block, blockIndex }))
     .filter(({ block }) => block.kind === 'heading' && !tocPages.has(block.anchor.pageIndex));
 
@@ -81,6 +85,29 @@ export function detectSections(
     });
   }
 
+  for (const source of sourceEvidence) {
+    if (source.confidence < 0.62 || rawTables.has(source.pageIndex)) continue;
+    const semantic = classifySectionTitle(source.title);
+    const kind: SemanticSectionKind = semantic?.kind ?? (source.kind === 'part' ? 'part' : 'chapter');
+    if (candidates.some(candidate => candidate.pageIndex === source.pageIndex && candidate.kind === kind
+      && titleSimilarity(candidate.title, source.title) >= 0.7)) continue;
+    const blockIndex = blocks.findIndex(block => block.anchor.pageIndex === source.pageIndex
+      && block.anchor.sourceStart < source.sourceEnd && block.anchor.sourceEnd > source.sourceStart);
+    if (blockIndex < 0) continue;
+    // A bookmark for a subtitle must not create a second section inside the
+    // same confirmed chapter heading and steal all of its reading units.
+    for (let index = candidates.length - 1; index >= 0; index--) {
+      const candidate = candidates[index]!;
+      const block = blocks[candidate.blockIndex];
+      if (kind === 'chapter' && candidate.kind === 'section' && block
+        && candidate.pageIndex === source.pageIndex && block.anchor.sourceStart < source.sourceEnd
+        && block.anchor.sourceEnd > source.sourceStart) candidates.splice(index, 1);
+    }
+    candidates.push({ title: cleanHeading(source.title), kind, pageIndex: source.pageIndex,
+      blockIndex, level: semantic?.level ?? source.level ?? 1, source: source.source,
+      confidence: source.confidence, evidence: source.evidence });
+  }
+
   const pageKinds = detectPageSections(blocks, pages, bookTitle);
   for (const candidate of pageKinds) {
     if (!candidates.some((existing) => existing.pageIndex === candidate.pageIndex && existing.kind === candidate.kind)) {
@@ -110,7 +137,24 @@ export function detectSections(
     const next = outlineChapters.find((chapter) => chapter.blockIndex > candidate.blockIndex);
     return previous && next && previous.level === next.level;
   }));
-  const deduped = dedupeCandidates(candidates.filter((candidate) => !internalParts.has(candidate)));
+  const openingTitles = new Set(pageKinds.filter(candidate => candidate.kind === 'titlePage' || candidate.kind === 'cover').map(candidate => candidate.pageIndex));
+  const repeated = new Map<string, number>();
+  candidates.filter(candidate => candidate.source === 'heading' && candidate.kind === 'part').forEach(candidate => {
+    const key = headingKey(candidate.title);
+    repeated.set(key, (repeated.get(key) ?? 0) + 1);
+  });
+  const deduped = dedupeCandidates(candidates.filter(candidate => {
+    if (internalParts.has(candidate)) return false;
+    if (candidate.source === 'heading' && (candidate.kind === 'chapter' || candidate.kind === 'part')) {
+      if (candidate.kind === 'part' && openingTitles.has(candidate.pageIndex) && candidate.pageIndex === 0
+        && /copyright|all rights reserved|©/iu.test(pages[1]?.text ?? '')
+        && !blocks.some(block => block.anchor.pageIndex === 0 && block.kind === 'prose' && /[.!?]/u.test(block.text))) return false;
+      if (candidate.kind === 'part' && (repeated.get(headingKey(candidate.title)) ?? 0) >= 3
+        && !sourceEvidence.some(source => source.pageIndex === candidate.pageIndex && source.confidence >= 0.62
+          && headingKey(source.title) === headingKey(candidate.title))) return false;
+    }
+    return true;
+  }));
   const suppressedNavigation = deduped.filter((candidate) => NAVIGABLE_KINDS.has(candidate.kind) && candidate.confidence < 0.62)
     .map((candidate) => ({ title: candidate.title, pageIndex: candidate.pageIndex, confidence: candidate.confidence,
       evidence: candidate.evidence, reason: 'confidence below navigation threshold' }));
@@ -241,6 +285,7 @@ export function expandedHeadingTitle(blocks: InternalBlock[], blockIndex: number
 
 export function detectPageSections(blocks: InternalBlock[], pages: PDFPageExtraction[], bookTitle: string): SectionCandidate[] {
   const result: SectionCandidate[] = [];
+  const tables = sourceTOCPages(pages.map(page => page.text));
   for (const page of pages.slice(0, Math.min(20, pages.length))) {
     const pageBlocks = blocks.map((block, index) => ({ block, index })).filter(({ block }) => block.anchor.pageIndex === page.index);
     const text = pageBlocks.map(({ block }) => block.text).join(' ');
@@ -250,12 +295,17 @@ export function detectPageSections(blocks: InternalBlock[], pages: PDFPageExtrac
     let evidence: string[] = [];
     if (/\b(?:copyright|all rights reserved|ISBN|library of congress|creative commons|published by)\b|©/iu.test(text)) {
       kind = 'copyright'; title = 'Copyright'; confidence = 0.96; evidence = ['copyright and publication identifiers'];
+    } else if (tables.has(page.index) && !/(?:^|\s)(?:table of )?contents(?:\s|$)/iu.test(text)) {
+      kind = 'contents'; title = 'Contents'; confidence = 0.94; evidence = ['raw contents destinations and repeated leaders'];
     } else if (/(?:^|\s)(?:table of )?contents(?:\s|$)/iu.test(text) && (text.match(/\.{2,}|\s\d{1,4}\b/gu)?.length ?? 0) >= 2) {
       kind = 'contents'; title = 'Contents'; confidence = 0.94; evidence = ['contents label and page destinations'];
     } else if (/^(?:to|for)\s+.{2,120}$/iu.test(text.trim()) && pageBlocks.length <= 4) {
       kind = 'dedication'; title = 'Dedication'; confidence = 0.8; evidence = ['short isolated dedication phrase'];
     } else if (page.index <= 3 && titleSimilarity(text, bookTitle) >= 0.55 && pageBlocks.some(({ block }) => block.kind === 'heading')) {
       kind = 'titlePage'; title = 'Title page'; confidence = 0.86; evidence = ['book title in prominent opening typography'];
+    } else if (page.index === 0 && pageBlocks.length > 3 && text.length < 600 && !/[.!?]/u.test(text)
+      && /copyright|all rights reserved|©/iu.test(pages[1]?.text ?? '')) {
+      kind = 'titlePage'; title = 'Title page'; confidence = 0.86; evidence = ['opening title typography before copyright page'];
     } else if (page.index === 0 && pageBlocks.length <= 3) {
       kind = 'cover'; title = 'Cover'; confidence = 0.65; evidence = ['sparse first page'];
     }

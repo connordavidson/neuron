@@ -1,7 +1,7 @@
 import type { Chapter } from '../types';
 
-export const CHAPTER_VERSION = 4;
-import { clean, EXPLICIT, SPECIAL, headingKey, detectSourceChapters, type SourceChapter, type OutlineItem } from './sourceNavigation';
+export const CHAPTER_VERSION = 5;
+import { clean, EXPLICIT, SPECIAL, headingKey, detectSourceChapters, collectChapterEvidence, type SourceChapter, type OutlineItem } from './sourceNavigation';
 export { headingKey, detectSourceChapters, type SourceChapter, type OutlineItem } from './sourceNavigation';
 export type BookStructureOptions = {
   outlines?: OutlineItem[];
@@ -13,7 +13,8 @@ export type BookStructureOptions = {
 };
 export type BookStructure = { chapters: Chapter[]; readingStart: number };
 export function detectBookStructure(paragraphs: string[], options: BookStructureOptions = {}): BookStructure {
-  const source = options.sourceChapters ?? detectSourceChapters(options.sourcePages ?? [], options.outlines, options.pageLineFonts);
+  const source = options.sourceChapters ?? collectChapterEvidence(options.sourcePages ?? [], options.outlines, options.pageLineFonts)
+    .filter(candidate => candidate.confidence >= 0.62);
   const chapters: Chapter[] = [];
   const normalized = paragraphs.map(headingKey);
   for (const item of source) {
