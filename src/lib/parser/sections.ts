@@ -4,7 +4,7 @@ import type { InternalBlock, SectionCandidate } from './types';
 import type { SectionNode, ParseDiagnostics, SemanticSectionKind } from '../../types';
 import { EXPLICIT_NUMBER, classifySectionTitle, CHAPTER_PATTERN, PART_PATTERN, NUMBERED_SECTION_PATTERN, TERMINAL_PROSE, BODY_START_KINDS, NAVIGABLE_KINDS, FRONT_KINDS, BACK_KINDS } from './policy';
 import { titleSimilarity, cleanHeading, clamp01, cleanLine, normalizeKey, unique } from './utils';
-import { makeSourceAnchor } from '.././readingUnits';
+import { makeSourceAnchor } from '../readingUnits';
 
 export function detectSections(
   extraction: PDFExtractionResult,

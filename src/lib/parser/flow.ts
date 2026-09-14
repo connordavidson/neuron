@@ -1,6 +1,6 @@
 import type { InternalBlock } from './types';
 import type { SectionNode, ReadingUnit, ContextualSupplement, ContentBlockKind, SemanticSectionKind, Chapter, ContentBlock } from '../../types';
-import type { ReadingPassage, ReadingPassageSegment } from '.././readingUnits';
+import type { ReadingPassage, ReadingPassageSegment } from '../readingUnits';
 import { PRIMARY_KINDS, COMPLETE_TEXT_KINDS, BODY_START_KINDS, FRONT_KINDS, BACK_KINDS } from './policy';
 
 export function assignSections(blocks: InternalBlock[], sections: SectionNode[]): void {

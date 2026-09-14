@@ -3,7 +3,7 @@ import { positive, unionRects, cleanLine, joinSpans, uniqueBy, furnitureKey, uni
 import type { LayoutLine, InternalBlock } from './types';
 import { TERMINAL_PROSE, CHAPTER_PATTERN, PART_PATTERN, classifySectionTitle } from './policy';
 import type { ContentBlockKind } from '../../types';
-import { makeSourceAnchor } from '.././readingUnits';
+import { makeSourceAnchor } from '../readingUnits';
 
 export function normalizedPages(extraction: PDFExtractionResult): PDFPageExtraction[] {
   if (extraction.structuredPages?.length) {
