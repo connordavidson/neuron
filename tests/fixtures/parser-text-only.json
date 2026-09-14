@@ -1,0 +1,1444 @@
+{
+  "metadata": {
+    "title": {
+      "value": "A Reliable Book",
+      "confidence": 0.78,
+      "evidence": [
+        "PDF metadata title; no typographic confirmation"
+      ]
+    },
+    "authors": [
+      {
+        "value": "Ada Reader",
+        "confidence": 0.86,
+        "evidence": [
+          "PDF author metadata"
+        ]
+      }
+    ],
+    "publisher": {
+      "value": "Example Press",
+      "confidence": 0.74,
+      "evidence": [
+        "publisher phrase in front matter"
+      ]
+    },
+    "language": {
+      "value": "en",
+      "confidence": 0.7,
+      "evidence": [
+        "English-first parser configuration"
+      ]
+    },
+    "identifiers": [
+      {
+        "value": "9781234567890",
+        "scheme": "isbn",
+        "confidence": 0.94,
+        "evidence": [
+          "ISBN pattern in front matter"
+        ]
+      }
+    ]
+  },
+  "sections": [
+    {
+      "id": "section-0",
+      "title": "Cover",
+      "kind": "cover",
+      "level": 0,
+      "startBlock": 0,
+      "endBlock": 0,
+      "startUnit": 0,
+      "endUnit": 0,
+      "startPage": 0,
+      "endPage": 0,
+      "anchor": {
+        "pageIndex": 0,
+        "sourceStart": 16,
+        "sourceEnd": 29,
+        "contextText": "by ada reader",
+        "contextHash": "6943461b"
+      },
+      "confidence": 0.65,
+      "evidence": [
+        "sparse first page"
+      ]
+    },
+    {
+      "id": "section-1",
+      "title": "Copyright",
+      "kind": "copyright",
+      "level": 0,
+      "startBlock": 1,
+      "endBlock": 3,
+      "startUnit": 1,
+      "endUnit": 1,
+      "startPage": 1,
+      "endPage": 1,
+      "anchor": {
+        "pageIndex": 1,
+        "sourceStart": 0,
+        "sourceEnd": 27,
+        "contextText": "copyright 2026 ada reader",
+        "contextHash": "cdd6a527"
+      },
+      "confidence": 0.96,
+      "evidence": [
+        "copyright and publication identifiers"
+      ]
+    },
+    {
+      "id": "section-2",
+      "title": "Contents",
+      "kind": "contents",
+      "level": 0,
+      "startBlock": 4,
+      "endBlock": 7,
+      "startUnit": 2,
+      "endUnit": 2,
+      "startPage": 2,
+      "endPage": 2,
+      "anchor": {
+        "pageIndex": 2,
+        "sourceStart": 0,
+        "sourceEnd": 8,
+        "contextText": "contents",
+        "contextHash": "8d4e0fa3"
+      },
+      "confidence": 0.94,
+      "evidence": [
+        "contents label and page destinations"
+      ]
+    },
+    {
+      "id": "section-3",
+      "title": "Chapter One: Beginnings",
+      "kind": "chapter",
+      "level": 0,
+      "startBlock": 8,
+      "endBlock": 10,
+      "startUnit": 3,
+      "endUnit": 5,
+      "startPage": 3,
+      "endPage": 4,
+      "anchor": {
+        "pageIndex": 3,
+        "sourceStart": 16,
+        "sourceEnd": 39,
+        "contextText": "chapter one beginnings",
+        "contextHash": "036463e2"
+      },
+      "confidence": 0.94,
+      "evidence": [
+        "PDF outline destination",
+        "matching complete destination title across extracted lines"
+      ]
+    },
+    {
+      "id": "section-4",
+      "title": "Chapter Two: Continuing",
+      "kind": "chapter",
+      "level": 0,
+      "startBlock": 11,
+      "endBlock": 12,
+      "startUnit": 6,
+      "endUnit": 7,
+      "startPage": 5,
+      "endPage": 5,
+      "anchor": {
+        "pageIndex": 5,
+        "sourceStart": 16,
+        "sourceEnd": 39,
+        "contextText": "chapter two continuing",
+        "contextHash": "b02f3646"
+      },
+      "confidence": 0.9400000000000001,
+      "evidence": [
+        "short non-sentence line",
+        "matching PDF outline destination",
+        "near page top"
+      ]
+    },
+    {
+      "id": "section-5",
+      "title": "Appendix A",
+      "kind": "appendix",
+      "level": 0,
+      "startBlock": 13,
+      "endBlock": 14,
+      "startUnit": 8,
+      "endUnit": 9,
+      "startPage": 6,
+      "endPage": 6,
+      "anchor": {
+        "pageIndex": 6,
+        "sourceStart": 16,
+        "sourceEnd": 26,
+        "contextText": "appendix a",
+        "contextHash": "7844dbb3"
+      },
+      "confidence": 0.9400000000000001,
+      "evidence": [
+        "short non-sentence line",
+        "matching PDF outline destination",
+        "near page top"
+      ]
+    },
+    {
+      "id": "section-6",
+      "title": "REFERENCES",
+      "kind": "bibliography",
+      "level": 1,
+      "parentId": "section-5",
+      "startBlock": 15,
+      "endBlock": 16,
+      "startUnit": 10,
+      "endUnit": 11,
+      "startPage": 7,
+      "endPage": 7,
+      "anchor": {
+        "pageIndex": 7,
+        "sourceStart": 16,
+        "sourceEnd": 26,
+        "contextText": "references",
+        "contextHash": "6392f7cb"
+      },
+      "confidence": 0.62,
+      "evidence": [
+        "short non-sentence line",
+        "near page top"
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "block-0",
+      "kind": "prose",
+      "text": "By Ada Reader",
+      "anchor": {
+        "pageIndex": 0,
+        "sourceStart": 16,
+        "sourceEnd": 29,
+        "contextText": "by ada reader",
+        "contextHash": "6943461b"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 80,
+        "width": 91,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose"
+      ],
+      "sectionId": "section-0"
+    },
+    {
+      "id": "block-1",
+      "kind": "prose",
+      "text": "Copyright © 2026 Ada Reader",
+      "anchor": {
+        "pageIndex": 1,
+        "sourceStart": 0,
+        "sourceEnd": 27,
+        "contextText": "copyright 2026 ada reader",
+        "contextHash": "cdd6a527"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 64,
+        "width": 189,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose"
+      ],
+      "sectionId": "section-1"
+    },
+    {
+      "id": "block-2",
+      "kind": "heading",
+      "text": "ISBN 978-1-23456-789-0",
+      "anchor": {
+        "pageIndex": 1,
+        "sourceStart": 28,
+        "sourceEnd": 50,
+        "contextText": "isbn 978 1 23456 789 0",
+        "contextHash": "5762ae72"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 80,
+        "width": 154,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-1"
+    },
+    {
+      "id": "block-3",
+      "kind": "prose",
+      "text": "Published by Example Press",
+      "anchor": {
+        "pageIndex": 1,
+        "sourceStart": 51,
+        "sourceEnd": 77,
+        "contextText": "published by example press",
+        "contextHash": "4b5df86b"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 96,
+        "width": 182,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose"
+      ],
+      "sectionId": "section-1"
+    },
+    {
+      "id": "block-4",
+      "kind": "heading",
+      "text": "CONTENTS",
+      "anchor": {
+        "pageIndex": 2,
+        "sourceStart": 0,
+        "sourceEnd": 8,
+        "contextText": "contents",
+        "contextHash": "8d4e0fa3"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 64,
+        "width": 56,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-2"
+    },
+    {
+      "id": "block-5",
+      "kind": "heading",
+      "text": "Chapter One .... 1",
+      "anchor": {
+        "pageIndex": 2,
+        "sourceStart": 9,
+        "sourceEnd": 27,
+        "contextText": "chapter one 1",
+        "contextHash": "2fab52d1"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 80,
+        "width": 126,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-2"
+    },
+    {
+      "id": "block-6",
+      "kind": "heading",
+      "text": "Chapter Two .... 3",
+      "anchor": {
+        "pageIndex": 2,
+        "sourceStart": 28,
+        "sourceEnd": 46,
+        "contextText": "chapter two 3",
+        "contextHash": "74e6eacd"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 96,
+        "width": 126,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-2"
+    },
+    {
+      "id": "block-7",
+      "kind": "heading",
+      "text": "Appendix .... 5",
+      "anchor": {
+        "pageIndex": 2,
+        "sourceStart": 47,
+        "sourceEnd": 62,
+        "contextText": "appendix 5",
+        "contextHash": "4c44966f"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 112,
+        "width": 105,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-2"
+    },
+    {
+      "id": "block-8",
+      "kind": "heading",
+      "text": "CHAPTER ONE: BEGINNINGS",
+      "anchor": {
+        "pageIndex": 3,
+        "sourceStart": 16,
+        "sourceEnd": 39,
+        "contextText": "chapter one beginnings",
+        "contextHash": "036463e2"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 80,
+        "width": 161,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-3"
+    },
+    {
+      "id": "block-9",
+      "kind": "prose",
+      "text": "The first sentence begins here. The second sentence ends here. 3",
+      "anchor": {
+        "pageIndex": 3,
+        "sourceStart": 40,
+        "sourceEnd": 104,
+        "contextText": "the first sentence begins here the second sentence ends here 3",
+        "contextHash": "10eeddf8"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 96,
+        "width": 434,
+        "height": 30
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose"
+      ],
+      "sectionId": "section-3"
+    },
+    {
+      "id": "block-10",
+      "kind": "prose",
+      "text": "This sentence crosses a PDF page boundary without stopping until this point. A fourth sentence follows. 1 A small contextual footnote. 4",
+      "anchor": {
+        "pageIndex": 4,
+        "sourceStart": 16,
+        "sourceEnd": 152,
+        "contextText": "this sentence crosses a pdf page boundary without stopping until this point a fourth sentence follows 1 a small contextual footnote 4",
+        "contextHash": "3d5de904"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 80,
+        "width": 308,
+        "height": 78
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose"
+      ],
+      "sectionId": "section-3"
+    },
+    {
+      "id": "block-11",
+      "kind": "heading",
+      "text": "CHAPTER TWO: CONTINUING",
+      "anchor": {
+        "pageIndex": 5,
+        "sourceStart": 16,
+        "sourceEnd": 39,
+        "contextText": "chapter two continuing",
+        "contextHash": "b02f3646"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 80,
+        "width": 161,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-4"
+    },
+    {
+      "id": "block-12",
+      "kind": "prose",
+      "text": "A new chapter starts cleanly. Its second sentence stays here. 5",
+      "anchor": {
+        "pageIndex": 5,
+        "sourceStart": 40,
+        "sourceEnd": 103,
+        "contextText": "a new chapter starts cleanly its second sentence stays here 5",
+        "contextHash": "ecd0c25c"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 96,
+        "width": 427,
+        "height": 30
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose"
+      ],
+      "sectionId": "section-4"
+    },
+    {
+      "id": "block-13",
+      "kind": "heading",
+      "text": "APPENDIX A",
+      "anchor": {
+        "pageIndex": 6,
+        "sourceStart": 16,
+        "sourceEnd": 26,
+        "contextText": "appendix a",
+        "contextHash": "7844dbb3"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 80,
+        "width": 70,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-5"
+    },
+    {
+      "id": "block-14",
+      "kind": "prose",
+      "text": "Appendix prose remains available. This is its second sentence. 6",
+      "anchor": {
+        "pageIndex": 6,
+        "sourceStart": 27,
+        "sourceEnd": 91,
+        "contextText": "appendix prose remains available this is its second sentence 6",
+        "contextHash": "d3ec0760"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 96,
+        "width": 434,
+        "height": 30
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose"
+      ],
+      "sectionId": "section-5"
+    },
+    {
+      "id": "block-15",
+      "kind": "heading",
+      "text": "REFERENCES",
+      "anchor": {
+        "pageIndex": 7,
+        "sourceStart": 16,
+        "sourceEnd": 26,
+        "contextText": "references",
+        "contextHash": "6392f7cb"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 80,
+        "width": 70,
+        "height": 14
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.55,
+      "evidence": [
+        "short non-sentence line"
+      ],
+      "sectionId": "section-6"
+    },
+    {
+      "id": "block-16",
+      "kind": "reference",
+      "text": "Reader, A. 2026. A cited work. 7",
+      "anchor": {
+        "pageIndex": 7,
+        "sourceStart": 27,
+        "sourceEnd": 59,
+        "contextText": "reader a 2026 a cited work 7",
+        "contextHash": "a41d9761"
+      },
+      "bounds": {
+        "x": 54,
+        "y": 96,
+        "width": 210,
+        "height": 30
+      },
+      "fontSize": 11,
+      "fontName": "",
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose"
+      ],
+      "sectionId": "section-6"
+    }
+  ],
+  "readingUnits": [
+    {
+      "id": "unit-0",
+      "text": "By Ada Reader",
+      "sentenceCount": 1,
+      "sectionId": "section-0",
+      "heading": "Cover",
+      "anchor": {
+        "pageIndex": 0,
+        "sourceStart": 16,
+        "sourceEnd": 29,
+        "contextText": "by ada reader",
+        "contextHash": "6943461b"
+      },
+      "endAnchor": {
+        "pageIndex": 0,
+        "sourceStart": 29,
+        "sourceEnd": 29,
+        "contextText": "by ada reader",
+        "contextHash": "6943461b"
+      },
+      "sourcePages": [
+        0
+      ],
+      "wordCount": 3,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "By Ada Reader",
+          "anchor": {
+            "pageIndex": 0,
+            "sourceStart": 16,
+            "sourceEnd": 29,
+            "contextText": "by ada reader",
+            "contextHash": "6943461b"
+          },
+          "endAnchor": {
+            "pageIndex": 0,
+            "sourceStart": 29,
+            "sourceEnd": 29,
+            "contextText": "by ada reader",
+            "contextHash": "6943461b"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-1",
+      "text": "Copyright © 2026 Ada Reader ISBN 978-1-23456-789-0 Published by Example Press",
+      "sentenceCount": 1,
+      "sectionId": "section-1",
+      "heading": "Copyright",
+      "anchor": {
+        "pageIndex": 1,
+        "sourceStart": 0,
+        "sourceEnd": 27,
+        "contextText": "copyright 2026 ada reader isbn 978 1 23456 789 0 published by example press",
+        "contextHash": "fff1fc08"
+      },
+      "endAnchor": {
+        "pageIndex": 1,
+        "sourceStart": 77,
+        "sourceEnd": 77,
+        "contextText": "copyright 2026 ada reader isbn 978 1 23456 789 0 published by example press",
+        "contextHash": "fff1fc08"
+      },
+      "sourcePages": [
+        1
+      ],
+      "wordCount": 11,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "Copyright © 2026 Ada Reader ISBN 978-1-23456-789-0 Published by Example Press",
+          "anchor": {
+            "pageIndex": 1,
+            "sourceStart": 0,
+            "sourceEnd": 27,
+            "contextText": "copyright 2026 ada reader isbn 978 1 23456 789 0 published by example press",
+            "contextHash": "fff1fc08"
+          },
+          "endAnchor": {
+            "pageIndex": 1,
+            "sourceStart": 77,
+            "sourceEnd": 77,
+            "contextText": "copyright 2026 ada reader isbn 978 1 23456 789 0 published by example press",
+            "contextHash": "fff1fc08"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-2",
+      "text": "CONTENTS Chapter One .... 1 Chapter Two .... 3 Appendix .... 5",
+      "sentenceCount": 1,
+      "sectionId": "section-2",
+      "heading": "Contents",
+      "anchor": {
+        "pageIndex": 2,
+        "sourceStart": 0,
+        "sourceEnd": 8,
+        "contextText": "contents chapter one 1 chapter two 3 appendix 5",
+        "contextHash": "1f2c9977"
+      },
+      "endAnchor": {
+        "pageIndex": 2,
+        "sourceStart": 62,
+        "sourceEnd": 62,
+        "contextText": "contents chapter one 1 chapter two 3 appendix 5",
+        "contextHash": "1f2c9977"
+      },
+      "sourcePages": [
+        2
+      ],
+      "wordCount": 12,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "CONTENTS Chapter One .... 1 Chapter Two .... 3 Appendix .... 5",
+          "anchor": {
+            "pageIndex": 2,
+            "sourceStart": 0,
+            "sourceEnd": 8,
+            "contextText": "contents chapter one 1 chapter two 3 appendix 5",
+            "contextHash": "1f2c9977"
+          },
+          "endAnchor": {
+            "pageIndex": 2,
+            "sourceStart": 62,
+            "sourceEnd": 62,
+            "contextText": "contents chapter one 1 chapter two 3 appendix 5",
+            "contextHash": "1f2c9977"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-3",
+      "text": "The first sentence begins here. The second sentence ends here.",
+      "sentenceCount": 2,
+      "sectionId": "section-3",
+      "heading": "Chapter One: Beginnings",
+      "anchor": {
+        "pageIndex": 3,
+        "sourceStart": 40,
+        "sourceEnd": 102,
+        "contextText": "the first sentence begins here the second sentence ends here",
+        "contextHash": "c62b0379"
+      },
+      "endAnchor": {
+        "pageIndex": 3,
+        "sourceStart": 102,
+        "sourceEnd": 104,
+        "contextText": "the first sentence begins here the second sentence ends here",
+        "contextHash": "c62b0379"
+      },
+      "sourcePages": [
+        3
+      ],
+      "wordCount": 10,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "The first sentence begins here.",
+          "anchor": {
+            "pageIndex": 3,
+            "sourceStart": 40,
+            "sourceEnd": 71,
+            "contextText": "the first sentence begins here",
+            "contextHash": "59401817"
+          },
+          "endAnchor": {
+            "pageIndex": 3,
+            "sourceStart": 71,
+            "sourceEnd": 102,
+            "contextText": "the first sentence begins here",
+            "contextHash": "59401817"
+          }
+        },
+        {
+          "text": "The second sentence ends here.",
+          "anchor": {
+            "pageIndex": 3,
+            "sourceStart": 72,
+            "sourceEnd": 102,
+            "contextText": "the second sentence ends here",
+            "contextHash": "4a462149"
+          },
+          "endAnchor": {
+            "pageIndex": 3,
+            "sourceStart": 102,
+            "sourceEnd": 104,
+            "contextText": "the second sentence ends here",
+            "contextHash": "4a462149"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-4",
+      "text": "3 This sentence crosses a PDF page boundary without stopping until this point. A fourth sentence follows.",
+      "sentenceCount": 2,
+      "sectionId": "section-3",
+      "anchor": {
+        "pageIndex": 3,
+        "sourceStart": 103,
+        "sourceEnd": 104,
+        "contextText": "3 this sentence crosses a pdf page boundary without stopping until this point a fourth sentence follows",
+        "contextHash": "0c98fcd3"
+      },
+      "endAnchor": {
+        "pageIndex": 4,
+        "sourceStart": 119,
+        "sourceEnd": 152,
+        "contextText": "3 this sentence crosses a pdf page boundary without stopping until this point a fourth sentence follows",
+        "contextHash": "0c98fcd3"
+      },
+      "sourcePages": [
+        3,
+        4
+      ],
+      "wordCount": 17,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "3 This sentence crosses a PDF page boundary without stopping until this point.",
+          "anchor": {
+            "pageIndex": 3,
+            "sourceStart": 103,
+            "sourceEnd": 104,
+            "contextText": "3 this sentence crosses a pdf page boundary without stopping until this point",
+            "contextHash": "0df08f83"
+          },
+          "endAnchor": {
+            "pageIndex": 4,
+            "sourceStart": 92,
+            "sourceEnd": 152,
+            "contextText": "3 this sentence crosses a pdf page boundary without stopping until this point",
+            "contextHash": "0df08f83"
+          }
+        },
+        {
+          "text": "A fourth sentence follows.",
+          "anchor": {
+            "pageIndex": 4,
+            "sourceStart": 93,
+            "sourceEnd": 119,
+            "contextText": "a fourth sentence follows",
+            "contextHash": "b1940497"
+          },
+          "endAnchor": {
+            "pageIndex": 4,
+            "sourceStart": 119,
+            "sourceEnd": 145,
+            "contextText": "a fourth sentence follows",
+            "contextHash": "b1940497"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-5",
+      "text": "1 A small contextual footnote. 4",
+      "sentenceCount": 2,
+      "sectionId": "section-3",
+      "anchor": {
+        "pageIndex": 4,
+        "sourceStart": 120,
+        "sourceEnd": 152,
+        "contextText": "1 a small contextual footnote 4",
+        "contextHash": "5c69a851"
+      },
+      "endAnchor": {
+        "pageIndex": 4,
+        "sourceStart": 152,
+        "sourceEnd": 152,
+        "contextText": "1 a small contextual footnote 4",
+        "contextHash": "5c69a851"
+      },
+      "sourcePages": [
+        4
+      ],
+      "wordCount": 6,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "1 A small contextual footnote.",
+          "anchor": {
+            "pageIndex": 4,
+            "sourceStart": 120,
+            "sourceEnd": 150,
+            "contextText": "1 a small contextual footnote",
+            "contextHash": "81b8e105"
+          },
+          "endAnchor": {
+            "pageIndex": 4,
+            "sourceStart": 150,
+            "sourceEnd": 152,
+            "contextText": "1 a small contextual footnote",
+            "contextHash": "81b8e105"
+          }
+        },
+        {
+          "text": "4",
+          "anchor": {
+            "pageIndex": 4,
+            "sourceStart": 151,
+            "sourceEnd": 152,
+            "contextText": "4",
+            "contextHash": "310ca263"
+          },
+          "endAnchor": {
+            "pageIndex": 4,
+            "sourceStart": 152,
+            "sourceEnd": 152,
+            "contextText": "4",
+            "contextHash": "310ca263"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-6",
+      "text": "A new chapter starts cleanly. Its second sentence stays here.",
+      "sentenceCount": 2,
+      "sectionId": "section-4",
+      "heading": "Chapter Two: Continuing",
+      "anchor": {
+        "pageIndex": 5,
+        "sourceStart": 40,
+        "sourceEnd": 101,
+        "contextText": "a new chapter starts cleanly its second sentence stays here",
+        "contextHash": "42d6213b"
+      },
+      "endAnchor": {
+        "pageIndex": 5,
+        "sourceStart": 101,
+        "sourceEnd": 103,
+        "contextText": "a new chapter starts cleanly its second sentence stays here",
+        "contextHash": "42d6213b"
+      },
+      "sourcePages": [
+        5
+      ],
+      "wordCount": 10,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "A new chapter starts cleanly.",
+          "anchor": {
+            "pageIndex": 5,
+            "sourceStart": 40,
+            "sourceEnd": 69,
+            "contextText": "a new chapter starts cleanly",
+            "contextHash": "6224bf16"
+          },
+          "endAnchor": {
+            "pageIndex": 5,
+            "sourceStart": 69,
+            "sourceEnd": 98,
+            "contextText": "a new chapter starts cleanly",
+            "contextHash": "6224bf16"
+          }
+        },
+        {
+          "text": "Its second sentence stays here.",
+          "anchor": {
+            "pageIndex": 5,
+            "sourceStart": 70,
+            "sourceEnd": 101,
+            "contextText": "its second sentence stays here",
+            "contextHash": "64cc8b0c"
+          },
+          "endAnchor": {
+            "pageIndex": 5,
+            "sourceStart": 101,
+            "sourceEnd": 103,
+            "contextText": "its second sentence stays here",
+            "contextHash": "64cc8b0c"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-7",
+      "text": "5",
+      "sentenceCount": 1,
+      "sectionId": "section-4",
+      "anchor": {
+        "pageIndex": 5,
+        "sourceStart": 102,
+        "sourceEnd": 103,
+        "contextText": "5",
+        "contextHash": "300ca0d0"
+      },
+      "endAnchor": {
+        "pageIndex": 5,
+        "sourceStart": 103,
+        "sourceEnd": 103,
+        "contextText": "5",
+        "contextHash": "300ca0d0"
+      },
+      "sourcePages": [
+        5
+      ],
+      "wordCount": 1,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "5",
+          "anchor": {
+            "pageIndex": 5,
+            "sourceStart": 102,
+            "sourceEnd": 103,
+            "contextText": "5",
+            "contextHash": "300ca0d0"
+          },
+          "endAnchor": {
+            "pageIndex": 5,
+            "sourceStart": 103,
+            "sourceEnd": 103,
+            "contextText": "5",
+            "contextHash": "300ca0d0"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-8",
+      "text": "Appendix prose remains available. This is its second sentence.",
+      "sentenceCount": 2,
+      "sectionId": "section-5",
+      "heading": "Appendix A",
+      "anchor": {
+        "pageIndex": 6,
+        "sourceStart": 27,
+        "sourceEnd": 89,
+        "contextText": "appendix prose remains available this is its second sentence",
+        "contextHash": "6dee7272"
+      },
+      "endAnchor": {
+        "pageIndex": 6,
+        "sourceStart": 89,
+        "sourceEnd": 91,
+        "contextText": "appendix prose remains available this is its second sentence",
+        "contextHash": "6dee7272"
+      },
+      "sourcePages": [
+        6
+      ],
+      "wordCount": 9,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "Appendix prose remains available.",
+          "anchor": {
+            "pageIndex": 6,
+            "sourceStart": 27,
+            "sourceEnd": 60,
+            "contextText": "appendix prose remains available",
+            "contextHash": "058776e5"
+          },
+          "endAnchor": {
+            "pageIndex": 6,
+            "sourceStart": 60,
+            "sourceEnd": 91,
+            "contextText": "appendix prose remains available",
+            "contextHash": "058776e5"
+          }
+        },
+        {
+          "text": "This is its second sentence.",
+          "anchor": {
+            "pageIndex": 6,
+            "sourceStart": 61,
+            "sourceEnd": 89,
+            "contextText": "this is its second sentence",
+            "contextHash": "148b5388"
+          },
+          "endAnchor": {
+            "pageIndex": 6,
+            "sourceStart": 89,
+            "sourceEnd": 91,
+            "contextText": "this is its second sentence",
+            "contextHash": "148b5388"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-9",
+      "text": "6",
+      "sentenceCount": 1,
+      "sectionId": "section-5",
+      "anchor": {
+        "pageIndex": 6,
+        "sourceStart": 90,
+        "sourceEnd": 91,
+        "contextText": "6",
+        "contextHash": "330ca589"
+      },
+      "endAnchor": {
+        "pageIndex": 6,
+        "sourceStart": 91,
+        "sourceEnd": 91,
+        "contextText": "6",
+        "contextHash": "330ca589"
+      },
+      "sourcePages": [
+        6
+      ],
+      "wordCount": 1,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "6",
+          "anchor": {
+            "pageIndex": 6,
+            "sourceStart": 90,
+            "sourceEnd": 91,
+            "contextText": "6",
+            "contextHash": "330ca589"
+          },
+          "endAnchor": {
+            "pageIndex": 6,
+            "sourceStart": 91,
+            "sourceEnd": 91,
+            "contextText": "6",
+            "contextHash": "330ca589"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-10",
+      "text": "REFERENCES Reader, A. 2026.",
+      "sentenceCount": 2,
+      "sectionId": "section-6",
+      "heading": "REFERENCES",
+      "anchor": {
+        "pageIndex": 7,
+        "sourceStart": 16,
+        "sourceEnd": 26,
+        "contextText": "references reader a 2026",
+        "contextHash": "3ec72211"
+      },
+      "endAnchor": {
+        "pageIndex": 7,
+        "sourceStart": 43,
+        "sourceEnd": 59,
+        "contextText": "references reader a 2026",
+        "contextHash": "3ec72211"
+      },
+      "sourcePages": [
+        7
+      ],
+      "wordCount": 4,
+      "supplementIds": [
+        "supplement-0"
+      ],
+      "sentences": [
+        {
+          "text": "REFERENCES Reader, A.",
+          "anchor": {
+            "pageIndex": 7,
+            "sourceStart": 16,
+            "sourceEnd": 26,
+            "contextText": "references reader a",
+            "contextHash": "21d61bcd"
+          },
+          "endAnchor": {
+            "pageIndex": 7,
+            "sourceStart": 37,
+            "sourceEnd": 58,
+            "contextText": "references reader a",
+            "contextHash": "21d61bcd"
+          }
+        },
+        {
+          "text": "2026.",
+          "anchor": {
+            "pageIndex": 7,
+            "sourceStart": 38,
+            "sourceEnd": 43,
+            "contextText": "2026",
+            "contextHash": "40293d93"
+          },
+          "endAnchor": {
+            "pageIndex": 7,
+            "sourceStart": 43,
+            "sourceEnd": 48,
+            "contextText": "2026",
+            "contextHash": "40293d93"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-11",
+      "text": "A cited work. 7",
+      "sentenceCount": 2,
+      "sectionId": "section-6",
+      "anchor": {
+        "pageIndex": 7,
+        "sourceStart": 44,
+        "sourceEnd": 59,
+        "contextText": "a cited work 7",
+        "contextHash": "a37cba17"
+      },
+      "endAnchor": {
+        "pageIndex": 7,
+        "sourceStart": 59,
+        "sourceEnd": 59,
+        "contextText": "a cited work 7",
+        "contextHash": "a37cba17"
+      },
+      "sourcePages": [
+        7
+      ],
+      "wordCount": 4,
+      "supplementIds": [],
+      "sentences": [
+        {
+          "text": "A cited work.",
+          "anchor": {
+            "pageIndex": 7,
+            "sourceStart": 44,
+            "sourceEnd": 57,
+            "contextText": "a cited work",
+            "contextHash": "6f58e8de"
+          },
+          "endAnchor": {
+            "pageIndex": 7,
+            "sourceStart": 57,
+            "sourceEnd": 59,
+            "contextText": "a cited work",
+            "contextHash": "6f58e8de"
+          }
+        },
+        {
+          "text": "7",
+          "anchor": {
+            "pageIndex": 7,
+            "sourceStart": 58,
+            "sourceEnd": 59,
+            "contextText": "7",
+            "contextHash": "320ca3f6"
+          },
+          "endAnchor": {
+            "pageIndex": 7,
+            "sourceStart": 59,
+            "sourceEnd": 59,
+            "contextText": "7",
+            "contextHash": "320ca3f6"
+          }
+        }
+      ]
+    }
+  ],
+  "supplements": [
+    {
+      "id": "supplement-0",
+      "kind": "reference",
+      "text": "Reader, A. 2026. A cited work. 7",
+      "anchor": {
+        "pageIndex": 7,
+        "sourceStart": 27,
+        "sourceEnd": 59,
+        "contextText": "reader a 2026 a cited work 7",
+        "contextHash": "a41d9761"
+      },
+      "relatedBlockIds": [
+        "unit-10",
+        "block-16"
+      ],
+      "confidence": 0.88,
+      "evidence": [
+        "layout classified as prose",
+        "attached to nearest primary reading unit"
+      ]
+    }
+  ],
+  "diagnostics": {
+    "parserVersion": 9,
+    "warnings": [
+      "This import used text-only extraction because structured PDF spans were unavailable."
+    ],
+    "suppressedNavigation": [
+      {
+        "title": "Decorative quotation",
+        "pageIndex": 4,
+        "confidence": 0.56,
+        "evidence": [
+          "PDF outline destination",
+          "unconfirmed outline label"
+        ],
+        "reason": "confidence below navigation threshold"
+      }
+    ],
+    "counts": {
+      "sourcePages": 8,
+      "sourceSpans": 31,
+      "blocks": 17,
+      "readingUnits": 12,
+      "supplements": 1,
+      "sections": 7,
+      "removedFurniture": 6
+    }
+  },
+  "chapters": [
+    {
+      "paragraphIndex": 0,
+      "title": "Cover",
+      "pageIndex": 0,
+      "level": 0,
+      "kind": "frontMatter",
+      "sectionId": "section-0",
+      "confidence": 0.65
+    },
+    {
+      "paragraphIndex": 1,
+      "title": "Copyright",
+      "pageIndex": 1,
+      "level": 0,
+      "kind": "frontMatter",
+      "sectionId": "section-1",
+      "confidence": 0.96
+    },
+    {
+      "paragraphIndex": 2,
+      "title": "Contents",
+      "pageIndex": 2,
+      "level": 0,
+      "kind": "frontMatter",
+      "sectionId": "section-2",
+      "confidence": 0.94
+    },
+    {
+      "paragraphIndex": 3,
+      "title": "Chapter One: Beginnings",
+      "pageIndex": 3,
+      "level": 0,
+      "kind": "chapter",
+      "sectionId": "section-3",
+      "confidence": 0.94
+    },
+    {
+      "paragraphIndex": 6,
+      "title": "Chapter Two: Continuing",
+      "pageIndex": 5,
+      "level": 0,
+      "kind": "chapter",
+      "sectionId": "section-4",
+      "confidence": 0.9400000000000001
+    },
+    {
+      "paragraphIndex": 8,
+      "title": "Appendix A",
+      "pageIndex": 6,
+      "level": 0,
+      "kind": "backMatter",
+      "sectionId": "section-5",
+      "confidence": 0.9400000000000001
+    },
+    {
+      "paragraphIndex": 10,
+      "title": "REFERENCES",
+      "pageIndex": 7,
+      "level": 1,
+      "kind": "backMatter",
+      "sectionId": "section-6",
+      "confidence": 0.62
+    }
+  ],
+  "paragraphs": [
+    "By Ada Reader",
+    "Copyright © 2026 Ada Reader ISBN 978-1-23456-789-0 Published by Example Press",
+    "CONTENTS Chapter One .... 1 Chapter Two .... 3 Appendix .... 5",
+    "The first sentence begins here. The second sentence ends here.",
+    "3 This sentence crosses a PDF page boundary without stopping until this point. A fourth sentence follows.",
+    "1 A small contextual footnote. 4",
+    "A new chapter starts cleanly. Its second sentence stays here.",
+    "5",
+    "Appendix prose remains available. This is its second sentence.",
+    "6",
+    "REFERENCES Reader, A. 2026.",
+    "A cited work. 7"
+  ],
+  "paragraphPages": [
+    0,
+    1,
+    2,
+    3,
+    3,
+    4,
+    5,
+    5,
+    6,
+    6,
+    7,
+    7
+  ],
+  "readingStart": 3
+}
