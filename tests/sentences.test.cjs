@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadSource } = require('./loadSource.cjs');
 const { sentenceSpans, splitSentences } = loadSource('src/lib/sentences.ts');
-const { paragraphizePagesWithMetadata, paragraphizeWithTokenizer } = loadSource('src/lib/paragraphize.ts');
+const { paragraphizePagesWithMetadata, paragraphizeWithTokenizer } = require('./helpers/productionCards.cjs');
 const { isHorizontalSwipe, swipeOffset, shouldRevealDelete } = loadSource('src/lib/swipeBook.ts');
 
 const excerpt = '"... because of the gene that codes for the particular version of neurochemical Y ."';
@@ -34,16 +34,16 @@ test('pauses, omitted text, and dialogue attribution are not extra sentences', (
   assert.deepEqual(splitSentences('“Wait...” She stopped. “What?!” He ran.'), ['“Wait...”', 'She stopped.', '“What?!”', 'He ran.']);
 });
 
-test('ellipsis split by PDF line and page breaks stays in one two-sentence card', () => {
+test('ellipsis split by PDF line and page breaks stays in one two-sentence card', async () => {
   const pages = ['".\n.\n. because of the gene that codes for', 'the particular version of neurochemical Y ."\nThe next sentence follows.'];
-  const cards = paragraphizePagesWithMetadata(pages);
+  const cards = await paragraphizePagesWithMetadata(pages);
   assert.equal(cards.length, 1);
   assert.equal(cards[0].text, excerpt.replace('...', '. . .') + ' The next sentence follows.');
   assert.equal(cards[0].pageIndex, 0);
 });
 
-test('ordinary sentence fragments continue across PDF pages before pairing', () => {
-  const cards = paragraphizePagesWithMetadata(['The first sentence continues', 'on this PDF page. The second sentence ends here. Third sentence. Fourth sentence.']);
+test('ordinary sentence fragments continue across PDF pages before pairing', async () => {
+  const cards = await paragraphizePagesWithMetadata(['The first sentence continues', 'on this PDF page. The second sentence ends here. Third sentence. Fourth sentence.']);
   assert.deepEqual(cards.map(c => c.text), ['The first sentence continues on this PDF page. The second sentence ends here.', 'Third sentence. Fourth sentence.']);
   assert.deepEqual(cards.map(c => c.pageIndex), [0, 1]);
 });
