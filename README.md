@@ -13,6 +13,7 @@ neuron is a new type of reader. The current app, FlowReader, is a React Native i
 - Detects title-page metadata plus front matter, chapters, parts, appendices, notes, references, indexes, and other semantic sections
 - Starts at the introduction/body on first open, while retaining copyright, dedication, and contents for backward scrolling and the section picker
 - Provides a chapter picker for quick navigation
+- Scans a physical book page on-device and jumps to the matching ebook passage, with Undo
 - Saves the visible reading page automatically, including when the app is backgrounded
 - Opens cached book content without reparsing or replacing it during a reading session
 - Measures reading progress by body-text word counts and retains PDF page numbers on new imports
@@ -40,6 +41,18 @@ The first iOS run generates the native project and links the local PDFKit module
 After native extractor changes, rerun `npm run ios`: refreshing JavaScript alone does not update PDFKit extraction. An older development build can fall back to text-only extraction, which loses the geometry needed for reliable chapter detection.
 
 For a physical iPhone, connect and trust it, enable Developer Mode, then run `npm run ios -- --device`. Choose your device and configure your Apple development team/signing in Xcode if prompted. The phone and computer should be on the same network while using the development server. Change the bundle identifier and Apple team in `app.json` for your own distribution.
+
+## Scan a physical book page
+
+Open the matching ebook, tap **Scan page** at the bottom of the reader, then **Open camera**. Scan one page in good light, include the top of the text, crop if needed, and tap **Save**. A strong text match moves you to the reading card containing the first reliable matching phrase. **Undo** restores and saves your previous place; the result remains available until dismissed, another scan starts, or the reader closes.
+
+The scanner uses Apple's page camera and Vision text recognition locally. Images stay in memory and are not saved or uploaded by FlowReader. Text matching searches only the open ebook and does not rely on printed page numbers. It tolerates modest OCR errors and different pagination, but translations or editions with substantially different wording may not match. V1 is validated with English prose in existing text-based PDF imports. It does not import a new ebook, search the whole library, or read a barcode.
+
+Short, unclear, and repeated text does not change your bookmark. Capture more surrounding body text or a clearer image and retry. If camera access is denied, use **Open Settings** to enable it. Cancellation preserves your position; a scan finishing in the background briefly keeps the scan button disabled to prevent overlapping camera requests.
+
+This feature adds native code and a camera permission description. Rebuild the development app after updating; JavaScript refresh alone is insufficient. When upgrading an already generated native project, run `npx expo prebuild --platform ios --no-install` to sync `app.json`, then `npm run ios` (or `npm run ios -- --device` for a phone). No book storage migration or reimport is needed.
+
+Run `node tools/benchmark_page_scan.cjs` for a deterministic desktop baseline with 300,000 synthetic book words, a 260-word scan, and simulated OCR substitutions. This measures matching only, not camera/OCR latency or physical iPhone performance. See [scan validation](design/page-scan-validation.md) for verified behavior and remaining device checks.
 
 ## PDF support
 
