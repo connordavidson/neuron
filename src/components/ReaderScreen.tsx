@@ -20,6 +20,7 @@ import { readerThemes } from '../theme';
 import { ReadingSession, chapterProgressMarkers, readingProgressAtPosition } from '../lib/readingPosition';
 import { currentChapterAt } from '../lib/bookStructure';
 import { ReaderProgress } from './ReaderProgress';
+import { PageScanControl } from './PageScanControl';
 import type { BookContent, BookSummary, ReaderPreferences, ReaderThemeName } from '../types';
 
 type Props = {
@@ -291,6 +292,20 @@ export function ReaderScreen({
           </View>
         </Animated.View>
 
+        <PageScanControl
+          bookId={book.id}
+          bookTitle={book.title}
+          paragraphs={content.paragraphs}
+          layoutRevision={content.layoutRevision}
+          currentPosition={() => session.index}
+          onJump={goToParagraph}
+          visible={chromeVisible && !showSettings && !showChapters && !showContext}
+          hiddenByPanel={showSettings || showChapters || showContext}
+          opacity={chromeOpacity}
+          disabled={isImprovingParsing || pageHeight <= 0}
+          theme={activeTheme}
+        />
+
         {showChapters ? (
           <View
             style={[
@@ -552,7 +567,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   reader: { flex: 1 },
   list: { flex: 1 },
-  page: { flexShrink: 0, width: '100%', overflow: 'hidden', paddingBottom: 52, paddingHorizontal: 30, paddingTop: 70 },
+  page: { flexShrink: 0, width: '100%', overflow: 'hidden', paddingBottom: 76, paddingHorizontal: 30, paddingTop: 70 },
   textContainer: { flex: 1, width: '100%' },
   textScrollContent: { flexGrow: 1 },
   textPressable: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 12 },

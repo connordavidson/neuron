@@ -12,6 +12,7 @@
       "bundleIdentifier": "com.example.flowreader",
       "supportsTablet": true,
       "infoPlist": {
+        "NSCameraUsageDescription": "Scan a page in your physical book to find your place in the ebook. Scans are processed on your device.",
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "PDF document",
