@@ -7,7 +7,7 @@ import { assignSections, buildPassages, buildSupplements, attachSupplements, fin
 import { proposedSentenceBoundaries, generateReadingUnits } from './readingUnits';
 import { NAVIGABLE_KINDS } from './parser/policy';
 
-export const CONTENT_PARSER_VERSION = 10;
+export const CONTENT_PARSER_VERSION = 11;
 
 export type SentenceTokenizer = (texts: string[]) => Promise<number[][]>;
 

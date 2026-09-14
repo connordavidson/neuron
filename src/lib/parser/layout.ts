@@ -198,7 +198,22 @@ export function reconstructBlocks(lines: LayoutLine[]): InternalBlock[] {
       result.push(blockFromLines(current, median, result.length));
       current = [];
     };
-    for (const line of pageLines) {
+    // Preserve punctuation runs that form an ellipsis with the following prose.
+    // They are source text, not decorative separators, even on separate lines.
+    const joinedLines: LayoutLine[] = [];
+    for (let index = 0; index < pageLines.length; index++) {
+      const first = pageLines[index]!;
+      let end = index;
+      while (end < pageLines.length - 1 && /^["'“‘]?\.{1,2}$/u.test(pageLines[end]!.text)) end++;
+      const run = pageLines.slice(index, end + 1);
+      if (end > index && /^(?:["'“‘]?\.\s*){3}/u.test(run.map(line => line.text).join(' '))) {
+        const last = pageLines[end]!;
+        joinedLines.push({ ...last, id: first.id, sourceStart: first.sourceStart,
+          text: run.map(line => line.text).join(' '), bounds: unionRects(run.map(line => line.bounds)) });
+        index = end;
+      } else joinedLines.push(first);
+    }
+    for (const line of joinedLines) {
       const lineKind = classifyLine(line, median);
       const previous = current.at(-1);
       if (!previous || canJoinLines(previous, line, lineKind, classifyLine(previous, median))) {

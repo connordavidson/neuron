@@ -306,7 +306,8 @@ export function detectPageSections(blocks: InternalBlock[], pages: PDFPageExtrac
     } else if (page.index === 0 && pageBlocks.length > 3 && text.length < 600 && !/[.!?]/u.test(text)
       && /copyright|all rights reserved|©/iu.test(pages[1]?.text ?? '')) {
       kind = 'titlePage'; title = 'Title page'; confidence = 0.86; evidence = ['opening title typography before copyright page'];
-    } else if (page.index === 0 && pageBlocks.length <= 3) {
+    } else if (page.index === 0 && pageBlocks.length <= 3
+      && !/^\p{Ll}/u.test(pages[1]?.text.trimStart() ?? '')) {
       kind = 'cover'; title = 'Cover'; confidence = 0.65; evidence = ['sparse first page'];
     }
     if (!kind || !pageBlocks.length) continue;
