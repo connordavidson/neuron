@@ -13,6 +13,8 @@ import {
   remapReadingPosition,
   sourceAnchorForLegacy,
 } from './src/lib/contentParser';
+import { contentFromParsed, defaultPreferences } from './src/lib/bookContent';
+import { resolveBookPDF } from './src/lib/bookFiles';
 import { sortLibrary } from './src/lib/libraryOrder';
 import { buildReadingOffsets, summaryAtPosition } from './src/lib/readingPosition';
 import { sentenceSpans } from './src/lib/sentences';
@@ -49,7 +51,7 @@ type PDFTextExtractorModuleWithTokenizer = typeof PDFTextExtractor & {
   sentenceBoundaries?: (texts: string[]) => Promise<number[][]>;
 };
 
-const initialPreferences: ReaderPreferences = { fontSize: 24, theme: 'paper' };
+const initialPreferences = defaultPreferences;
 
 export default function App() {
   const [books, setBooks] = useState<BookSummary[]>([]);
@@ -88,8 +90,7 @@ export default function App() {
     try {
       // iOS can relocate the app sandbox during an update. Resolve our owned
       // PDF from today's Documents directory instead of relying on its old URL.
-      const localPDF = new File(Paths.document, 'FlowReader', 'Books', `${id}.pdf`);
-      const extraction = await PDFTextExtractor.extract(localPDF.exists ? localPDF.uri : content.pdfUri);
+      const extraction = await PDFTextExtractor.extract(resolveBookPDF(id, content.pdfUri));
       if (!booksRef.current.some((book) => book.id === id)) return;
       const { chapters } = detectBookStructure(content.paragraphs, {
         sourcePages: extraction.pages,
@@ -170,48 +171,19 @@ export default function App() {
           throw new Error('This PDF has no readable text. Try running OCR on it first.');
         }
 
+        const content = contentFromParsed(parsed, destination.uri, createID());
         const book: StoredBook = {
-          currentParagraph: parsed.readingStart,
+          ...content,
           id,
+          title: parsed.metadata.title.value,
+          originalFileName,
           importedAt: new Date().toISOString(),
           lastReadAt: openAfterImport ? new Date().toISOString() : undefined,
-          originalFileName,
+          currentParagraph: parsed.readingStart,
           paragraphCount: parsed.paragraphs.length,
-          paragraphs: parsed.paragraphs,
-          paragraphPages: parsed.paragraphPages,
-          parserVersion: CONTENT_PARSER_VERSION,
-          pdfUri: destination.uri,
-          chapters: parsed.chapters,
-          chapterVersion: CHAPTER_VERSION,
-          readingStart: parsed.readingStart,
-          title: parsed.metadata.title.value,
-          metadata: parsed.metadata,
-          sections: parsed.sections,
-          blocks: parsed.blocks,
-          readingUnits: parsed.readingUnits,
-          supplements: parsed.supplements,
-          diagnostics: parsed.diagnostics,
-          layoutRevision: createID(),
         };
-
-        const offsets = buildReadingOffsets(book);
-        const summary = await storeBook({ ...book, ...summaryAtPosition(book, book, offsets) });
-        const content: BookContent = {
-          chapters: book.chapters,
-          chapterVersion: CHAPTER_VERSION,
-          pdfUri: book.pdfUri,
-          paragraphs: book.paragraphs,
-          paragraphPages: book.paragraphPages,
-          parserVersion: CONTENT_PARSER_VERSION,
-          readingStart: parsed.readingStart,
-          metadata: parsed.metadata,
-          sections: parsed.sections,
-          blocks: parsed.blocks,
-          readingUnits: parsed.readingUnits,
-          supplements: parsed.supplements,
-          diagnostics: parsed.diagnostics,
-          layoutRevision: book.layoutRevision,
-        };
+        const offsets = buildReadingOffsets(content);
+        const summary = await storeBook({ ...book, ...summaryAtPosition(book, content, offsets) });
         contentCache.current.set(id, { content, offsets });
         saveLibrary([summary, ...booksRef.current]);
 
@@ -360,8 +332,7 @@ export default function App() {
     if (!current || improvingBookID) return;
     setImprovingBookID(current.summary.id);
     try {
-      const localPDF = new File(Paths.document, 'FlowReader', 'Books', `${current.summary.id}.pdf`);
-      const extraction = await PDFTextExtractor.extract(localPDF.exists ? localPDF.uri : current.content.pdfUri);
+      const extraction = await PDFTextExtractor.extract(resolveBookPDF(current.summary.id, current.content.pdfUri));
       const parsed = await parseEbook(extraction, current.summary.originalFileName, tokenizeOnDevice);
       if (!parsed.paragraphs.length) throw new Error('The new parser could not find readable prose in this PDF.');
       const oldIndex = current.summary.currentParagraph;
@@ -376,22 +347,7 @@ export default function App() {
         );
         return;
       }
-      const content: BookContent = {
-        pdfUri: current.content.pdfUri,
-        paragraphs: parsed.paragraphs,
-        paragraphPages: parsed.paragraphPages,
-        chapters: parsed.chapters,
-        chapterVersion: CHAPTER_VERSION,
-        readingStart: parsed.readingStart,
-        parserVersion: CONTENT_PARSER_VERSION,
-        metadata: parsed.metadata,
-        sections: parsed.sections,
-        blocks: parsed.blocks,
-        readingUnits: parsed.readingUnits,
-        supplements: parsed.supplements,
-        diagnostics: parsed.diagnostics,
-        layoutRevision: createID(),
-      };
+      const content = contentFromParsed(parsed, current.content.pdfUri, createID());
       const offsets = buildReadingOffsets(content);
       const summary = summaryAtPosition({
         ...current.summary,
