@@ -71,7 +71,7 @@ export async function loadBookContent(id: string): Promise<BookContent | null> {
   return normalizeStoredContent(serialized, chapterData);
 }
 
-export async function storeChapterMetadata(id: string, content: Pick<BookContent, 'chapters' | 'chapterVersion'>): Promise<void> {
+export async function storeChapterMetadata(id: string, content: Pick<BookContent, 'chapters' | 'chapterVersion' | 'layoutRevision'>): Promise<void> {
   await AsyncStorage.setItem(chapterMetadataKey(id), JSON.stringify(content));
 }
 

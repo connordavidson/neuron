@@ -37,11 +37,30 @@ export class LibraryController {
       .finally(() => { if (mounted) this.set('isLoading', false); });
     return () => { mounted = false; };
   };
+  private deleted = new Set<string>();
+  private writes = new Map<string, Promise<void>>();
+  readerSession = 0;
+
+  private mutateBook(id: string, operation: () => Promise<void>): Promise<void> {
+    const previous = this.writes.get(id) ?? Promise.resolve();
+    const pending = previous.catch(() => undefined).then(operation);
+    this.writes.set(id, pending);
+    void pending.finally(() => {
+      if (this.writes.get(id) === pending) this.writes.delete(id);
+    }).catch(() => undefined);
+    return pending;
+  }
+
   removeBook = async (book: BookSummary) => {
-    const content = await this.services.storage.loadBookContent(book.id);
-    await this.services.storage.deleteBookData(book.id, content?.pdfUri);
+    this.deleted.add(book.id);
+    this.openingRequest.current += 1;
     this.contentCache.current.delete(book.id);
+    if (this.activeBookRef.current?.summary.id === book.id) this.showBook(null);
     this.saveLibrary(this.booksRef.current.filter(candidate => candidate.id !== book.id));
+    await this.mutateBook(book.id, async () => {
+      const content = await this.services.storage.loadBookContent(book.id);
+      await this.services.storage.deleteBookData(book.id, this.services.resolvePDF(book.id, content?.pdfUri ?? ''));
+    });
   };
   saveLibrary = (nextBooks: BookSummary[]) => {
     const ordered = sortLibrary(nextBooks);
@@ -53,6 +72,8 @@ export class LibraryController {
   };
 
   showBook = (nextBook: ActiveBook | null) => {
+    const previous = this.activeBookRef.current;
+    if (previous?.summary.id !== nextBook?.summary.id || previous?.content.layoutRevision !== nextBook?.content.layoutRevision) this.readerSession += 1;
     this.activeBookRef.current = nextBook;
     this.set('activeBook', nextBook);
   };
@@ -72,18 +93,20 @@ export class LibraryController {
         outlines: extraction.outlines,
         paragraphPages: content.paragraphPages,
       });
-      const metadata = { chapters, chapterVersion: CHAPTER_VERSION };
-      await this.services.storage.storeChapterMetadata(id, metadata);
-      const cached = this.contentCache.current.get(id);
-      if (!cached || !this.booksRef.current.some((book) => book.id === id)) return;
-      const nextContent = { ...cached.content, ...metadata };
-      this.contentCache.current.set(id, { ...cached, content: nextContent });
-      const current = this.activeBookRef.current;
-      if (current?.summary.id === id) {
-        // Update only navigation metadata. Keep the latest bookmark, progress,
-        // paragraph array and reader instance intact, even after a long scan.
-        this.showBook({ ...current, content: nextContent });
-      }
+      await this.mutateBook(id, async () => {
+        const cached = this.contentCache.current.get(id);
+        if (this.deleted.has(id) || !cached || cached.content.layoutRevision !== content.layoutRevision
+          || this.state.improvingBookID === id) return;
+        const metadata = { chapters, chapterVersion: CHAPTER_VERSION, layoutRevision: content.layoutRevision };
+        await this.services.storage.storeChapterMetadata(id, metadata);
+        if (this.deleted.has(id)) return;
+        const nextContent = { ...cached.content, ...metadata };
+        this.contentCache.current.set(id, { ...cached, content: nextContent });
+        const current = this.activeBookRef.current;
+        if (current?.summary.id === id && current.content.layoutRevision === content.layoutRevision) {
+          this.showBook({ ...current, content: nextContent });
+        }
+      });
     } catch {
       // A failed metadata refresh never prevents reading the saved book.
     } finally {
@@ -92,8 +115,8 @@ export class LibraryController {
     }
   };
 
-  importPDFSource = async (source: PDFSource, openAfterImport = false, isImporting = false): Promise<BookSummary | null> => {
-      if (isImporting) return null;
+  importPDFSource = async (source: PDFSource, openAfterImport = false): Promise<BookSummary | null> => {
+      if (this.state.isImporting) return null;
 
       let destination: File | undefined;
       let importedBookID: string | undefined;
@@ -161,7 +184,10 @@ export class LibraryController {
         cached = { content, offsets: buildReadingOffsets(content) };
         this.contentCache.current.set(book.id, cached);
       }
-      if (request !== this.openingRequest.current) return;
+      if (request !== this.openingRequest.current || this.deleted.has(book.id)) {
+        if (this.deleted.has(book.id)) this.contentCache.current.delete(book.id);
+        return;
+      }
       const latest = this.booksRef.current.find((candidate) => candidate.id === book.id);
       if (!latest) return;
       const { content, offsets } = cached;
@@ -177,9 +203,9 @@ export class LibraryController {
     }
   };
 
-  updateProgress = (bookID: string, paragraph: number) => {
+  updateProgress = (bookID: string, paragraph: number, session = this.readerSession) => {
     const current = this.activeBookRef.current;
-    if (!current || current.summary.id !== bookID) return;
+    if (!current || current.summary.id !== bookID || session !== this.readerSession || this.deleted.has(bookID)) return;
     const summary = summaryAtPosition({ ...current.summary, lastReadAt: this.services.now() }, current.content, current.offsets, paragraph);
     this.activeBookRef.current = { ...current, summary };
     this.set('activeBook', this.activeBookRef.current);
@@ -191,46 +217,67 @@ export class LibraryController {
     void this.services.storage.persistPreferences(nextPreferences);
   };
 
-  improveParsing = async (improvingBookID: string | null = null) => {
+  improveParsing = async () => {
     const current = this.activeBookRef.current;
-    if (!current || improvingBookID) return;
-    this.set('improvingBookID', current.summary.id);
+    if (!current || this.state.improvingBookID) return;
+    const id = current.summary.id;
+    const session = this.readerSession;
+    const revision = current.content.layoutRevision;
+    this.set('improvingBookID', id);
+    const stillCurrent = () => !this.deleted.has(id) && this.readerSession === session
+      && this.activeBookRef.current?.content.layoutRevision === revision;
     try {
-      const extraction = await this.services.extract(this.services.resolvePDF(current.summary.id, current.content.pdfUri));
+      const extraction = await this.services.extract(this.services.resolvePDF(id, current.content.pdfUri));
+      if (!stillCurrent()) return;
       const parsed = await this.services.parse(extraction, current.summary.originalFileName, this.services.tokenize);
+      if (!stillCurrent()) return;
       if (!parsed.paragraphs.length) throw new Error('The new parser could not find readable prose in this PDF.');
-      const oldIndex = current.summary.currentParagraph;
-      const oldAnchor = current.summary.currentAnchor
-        ?? current.content.readingUnits?.[oldIndex]?.anchor
-        ?? sourceAnchorForLegacy(current.content.paragraphs[oldIndex] ?? '', current.content.paragraphPages?.[oldIndex] ?? 0);
-      const remapped = remapReadingPosition(oldAnchor, parsed.readingUnits);
-      if (remapped.confidence < 0.9) {
-        this.services.notify(
-          'Kept your current layout',
-          'The improved parser could not match your exact reading position with at least 90% confidence, so nothing was changed.',
-        );
-        return;
-      }
       const content = contentFromParsed(parsed, current.content.pdfUri, this.services.createID());
       const offsets = buildReadingOffsets(content);
-      const summary = summaryAtPosition({
-        ...current.summary,
-        title: parsed.metadata.title.value,
-        parserVersion: CONTENT_PARSER_VERSION,
-      }, content, offsets, remapped.index);
-      await this.services.storage.storeBookContent(summary.id, content);
-      this.contentCache.current.set(summary.id, { content, offsets });
-      this.saveLibrary(this.booksRef.current.map((book) => book.id === summary.id ? summary : book));
-      this.showBook({ summary, content, offsets });
-      this.services.notify('Parsing improved', 'The book was reprocessed and your reading position was preserved.');
+      const remap = (summary: BookSummary) => {
+        const index = summary.currentParagraph;
+        const anchor = summary.currentAnchor ?? current.content.readingUnits?.[index]?.anchor
+          ?? sourceAnchorForLegacy(current.content.paragraphs[index] ?? '', current.content.paragraphPages?.[index] ?? 0);
+        return remapReadingPosition(anchor, parsed.readingUnits);
+      };
+      await this.mutateBook(id, async () => {
+        if (!stillCurrent()) return;
+        const latest = this.booksRef.current.find(book => book.id === id)!;
+        if (remap(latest).confidence < 0.9) {
+          this.services.notify('Kept your current layout', 'The improved parser could not match your exact reading position with at least 90% confidence, so nothing was changed.');
+          return;
+        }
+        await this.services.storage.storeBookContent(id, content);
+        if (this.deleted.has(id)) return; // The queued removal runs after this write.
+        const newest = this.booksRef.current.find(book => book.id === id);
+        if (!newest) return;
+        // Movement can continue while storage writes. Map that latest old-layout
+        // position too; an uncertain match restores the previous saved layout.
+        const position = remap(newest);
+        if (position.confidence < 0.9) {
+          await this.services.storage.storeBookContent(id, current.content);
+          return;
+        }
+        const summary = summaryAtPosition({ ...newest, title: parsed.metadata.title.value,
+          parserVersion: CONTENT_PARSER_VERSION }, content, offsets, position.index);
+        this.contentCache.current.set(id, { content, offsets });
+        this.saveLibrary(this.booksRef.current.map(book => book.id === id ? summary : book));
+        const active = this.activeBookRef.current;
+        if (active?.summary.id === id && active.content.layoutRevision === revision) {
+          this.showBook({ summary, content, offsets });
+          this.services.notify('Parsing improved', 'The book was reprocessed and your reading position was preserved.');
+        }
+      });
     } catch (error) {
-      this.services.notify('Couldn’t improve parsing', friendlyErrorMessage(error));
+      if (stillCurrent()) this.services.notify('Couldn’t improve parsing', friendlyErrorMessage(error));
     } finally {
       this.set('improvingBookID', null);
     }
   };
 
-  closeReader = (paragraph: number) => {
+  closeReader = (paragraph: number, session = this.readerSession) => {
+      if (session !== this.readerSession) return;
+      this.openingRequest.current += 1;
       const current = this.activeBookRef.current;
       if (current) this.updateProgress(current.summary.id, paragraph);
       this.showBook(null);

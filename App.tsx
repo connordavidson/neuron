@@ -11,9 +11,11 @@ import type { BookSummary } from './src/types';
 export default function App() {
   const { books, preferences, activeBook, isLoading, isImporting, openingBookID, improvingBookID, updatingChapterIDs, controller } = useLibraryController(Alert.alert);
   const handledIncomingURLs = useRef(new Set<string>());
-  const importPDFSource = useCallback((source: PDFSource, open = false) => controller.importPDFSource(source, open, isImporting), [controller, isImporting]);
-  const improveParsing = () => controller.improveParsing(improvingBookID);
-  const { openBook, updateProgress, updatePreferences, closeReader } = controller;
+  const importPDFSource = useCallback((source: PDFSource, open = false) => controller.importPDFSource(source, open), [controller, isImporting]);
+  const improveParsing = () => controller.improveParsing();
+  const { openBook, updateProgress, updatePreferences } = controller;
+  const readerSession = controller.readerSession;
+  const closeReader = (paragraph: number) => controller.closeReader(paragraph, readerSession);
   const importIncomingURL = useCallback(
     async (url: string) => {
       if (!url.toLowerCase().startsWith('file://')) return;
@@ -83,7 +85,7 @@ export default function App() {
             style: 'destructive',
             text: 'Remove',
             onPress: () => {
-              void controller.removeBook(book);
+              void controller.removeBook(book).catch(error => Alert.alert('Couldn’t remove book', friendlyErrorMessage(error)));
             },
           },
         ],
@@ -121,7 +123,7 @@ export default function App() {
             updatingChapters={updatingChapterIDs.includes(activeBook.summary.id)}
             onClose={closeReader}
             onPreferencesChange={updatePreferences}
-            onProgressChange={(paragraph) => updateProgress(activeBook.summary.id, paragraph)}
+            onProgressChange={(paragraph) => updateProgress(activeBook.summary.id, paragraph, readerSession)}
             preferences={preferences}
           />
         ) : null}
