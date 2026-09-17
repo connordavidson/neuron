@@ -67,7 +67,7 @@ function fixtureExtraction() {
   };
 }
 
-test('structured parser removes running furniture and emits exactly two sentences per card', async () => {
+test('structured parser removes running furniture and emits at most two sentences per card', async () => {
   const parsed = await parseEbook(fixtureExtraction(), 'unhelpful-file-name.pdf');
   assert.equal(parsed.diagnostics.parserVersion, CONTENT_PARSER_VERSION);
   assert.equal(parsed.metadata.title.value, 'A Reliable Book');
@@ -78,6 +78,31 @@ test('structured parser removes running furniture and emits exactly two sentence
   assert.ok(parsed.paragraphs.every(text => text !== 'A RELIABLE BOOK' && !/^\d+$/.test(text)));
   assert.ok(parsed.supplements.some(supplement => supplement.kind === 'footnote'));
   assert.ok(parsed.supplements.some(supplement => supplement.kind === 'reference'));
+});
+
+test('oversized pairs split before chapter ranges, supplements and progress are calculated', async () => {
+  const first = Array.from({ length: 16 }, (_, index) => `First${index}`).join(' ') + '.';
+  const second = Array.from({ length: 17 }, (_, index) => `Second${index}`).join(' ') + '.';
+  const pages = [
+    page(0, [{ text: 'CHAPTER ONE', fontSize: 20 }, `${first} ${second}`,
+      { text: '1 A small contextual footnote.', fontSize: 7, y: 710 }]),
+    page(1, [{ text: 'CHAPTER TWO', fontSize: 20 }, 'The next chapter begins. Another sentence follows.']),
+  ];
+  const parsed = await parseEbook({ pages: pages.map(p => p.text), structuredPages: pages,
+    outlines: [{ title: 'Chapter One', pageIndex: 0, level: 0 }, { title: 'Chapter Two', pageIndex: 1, level: 0 }] }, 'book.pdf');
+  assert.deepEqual(parsed.paragraphs, [first, second, 'The next chapter begins. Another sentence follows.']);
+  assert.deepEqual(parsed.paragraphPages, [0, 0, 1]);
+  assert.deepEqual(parsed.chapters.map(chapter => chapter.paragraphIndex), [0, 2]);
+  assert.equal(parsed.readingStart, 0);
+  assert.equal(parsed.diagnostics.counts.readingUnits, 3);
+  const firstSection = parsed.sections.find(section => section.id === parsed.readingUnits[0].sectionId);
+  assert.equal(firstSection.startUnit, 0);
+  assert.equal(firstSection.endUnit, 1);
+  const note = parsed.supplements.find(supplement => supplement.kind === 'footnote');
+  assert.ok(note);
+  assert.ok(parsed.readingUnits.some(unit => unit.supplementIds.includes(note.id) && note.relatedBlockIds.includes(unit.id)));
+  const { buildReadingOffsets } = loadSource('src/lib/readingPosition.ts');
+  assert.deepEqual(buildReadingOffsets(parsed), [0, 16, 33, 40]);
 });
 
 test('semantic navigation keeps confirmed structure and suppresses an uncertain outline label', async () => {

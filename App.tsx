@@ -9,10 +9,9 @@ import type { PDFSource } from './src/lib/libraryController';
 import type { BookSummary } from './src/types';
 
 export default function App() {
-  const { books, preferences, activeBook, isLoading, isImporting, openingBookID, improvingBookID, updatingChapterIDs, controller } = useLibraryController(Alert.alert);
+  const { books, preferences, activeBook, isLoading, isImporting, openingBookID, updatingChapterIDs, controller } = useLibraryController(Alert.alert);
   const handledIncomingURLs = useRef(new Set<string>());
   const importPDFSource = useCallback((source: PDFSource, open = false) => controller.importPDFSource(source, open), [controller, isImporting]);
-  const improveParsing = () => controller.improveParsing();
   const { openBook, updateProgress, updatePreferences } = controller;
   const readerSession = controller.readerSession;
   const closeReader = (paragraph: number) => controller.closeReader(paragraph, readerSession);
@@ -118,8 +117,6 @@ export default function App() {
             book={activeBook.summary}
             content={activeBook.content}
             readingOffsets={activeBook.offsets}
-            isImprovingParsing={improvingBookID === activeBook.summary.id}
-            onImproveParsing={improveParsing}
             updatingChapters={updatingChapterIDs.includes(activeBook.summary.id)}
             onClose={closeReader}
             onPreferencesChange={updatePreferences}

@@ -26,10 +26,8 @@ type Props = {
   content: BookContent;
   readingOffsets: number[];
   updatingChapters?: boolean;
-  isImprovingParsing?: boolean;
   preferences: ReaderPreferences;
   onClose: (paragraph: number) => void;
-  onImproveParsing?: () => void;
   onPreferencesChange: (preferences: ReaderPreferences) => void;
   onProgressChange: (paragraph: number) => void;
 };
@@ -39,10 +37,8 @@ export function ReaderScreen({
   content,
   readingOffsets,
   updatingChapters = false,
-  isImprovingParsing = false,
   preferences,
   onClose,
-  onImproveParsing,
   onPreferencesChange,
   onProgressChange,
 }: Props) {
@@ -162,10 +158,9 @@ export function ReaderScreen({
             accessibilityRole="button"
             hitSlop={8}
             onPress={() => onClose(session.index)}
-            style={({ pressed }) => [
+            style={[
               styles.roundControl,
               { backgroundColor: activeTheme.foreground + '12' },
-              pressed && styles.controlPressed,
             ]}
           >
             <Text style={[styles.backGlyph, { color: activeTheme.foreground }]}>‹</Text>
@@ -192,10 +187,9 @@ export function ReaderScreen({
                   setPanel(current => current === 'context' ? null : 'context');
                   setChrome(true);
                 }}
-                style={({ pressed }) => [
+                style={[
                   styles.roundControl,
                   { backgroundColor: activeTheme.foreground + '12' },
-                  pressed && styles.controlPressed,
                 ]}
               >
                 <Text style={[styles.contextGlyph, { color: activeTheme.foreground }]}>†</Text>
@@ -209,10 +203,9 @@ export function ReaderScreen({
                 setPanel(current => current === 'chapters' ? null : 'chapters');
                   setChrome(true);
               }}
-              style={({ pressed }) => [
+              style={[
                 styles.roundControl,
                 { backgroundColor: activeTheme.foreground + '12' },
-                pressed && styles.controlPressed,
               ]}
             >
               <Text style={[styles.chaptersGlyph, { color: activeTheme.foreground }]}>☰</Text>
@@ -225,10 +218,9 @@ export function ReaderScreen({
                 setPanel(current => current === 'settings' ? null : 'settings');
                   setChrome(true);
               }}
-              style={({ pressed }) => [
+              style={[
                 styles.roundControl,
                 { backgroundColor: activeTheme.foreground + '12' },
-                pressed && styles.controlPressed,
               ]}
             >
               <Text style={[styles.settingsGlyph, { color: activeTheme.foreground }]}>Aa</Text>
@@ -246,15 +238,24 @@ export function ReaderScreen({
           visible={chromeVisible && !showSettings && !showChapters && !showContext}
           hiddenByPanel={showSettings || showChapters || showContext}
           opacity={chromeOpacity}
-          disabled={isImprovingParsing || pageHeight <= 0}
+          disabled={pageHeight <= 0}
           theme={activeTheme}
         />
+
+        {showChapters || showSettings ? (
+          <Pressable
+            accessibilityLabel="Dismiss reader panel"
+            accessibilityRole="button"
+            onPress={() => setPanel(null)}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : null}
 
         {showChapters ? <ChaptersPanel activeTheme={activeTheme} preferences={preferences} navigationStart={navigationStart} goToParagraph={goToParagraph} onClose={() => setPanel(null)} updatingChapters={updatingChapters} content={content} currentChapter={currentChapter} /> : null}
 
         {showContext ? <ContextPanel activeTheme={activeTheme} preferences={preferences} onClose={() => setPanel(null)} currentSupplements={currentSupplements} /> : null}
 
-        {showSettings ? <SettingsPanel activeTheme={activeTheme} preferences={preferences} onClose={() => setPanel(null)} onPreferencesChange={onPreferencesChange} themeOptions={themeOptions} onImproveParsing={onImproveParsing} isImprovingParsing={isImprovingParsing} /> : null}
+        {showSettings ? <SettingsPanel activeTheme={activeTheme} preferences={preferences} onClose={() => setPanel(null)} onPreferencesChange={onPreferencesChange} themeOptions={themeOptions} /> : null}
 
 
       </View>

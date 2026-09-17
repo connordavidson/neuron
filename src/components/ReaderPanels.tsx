@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { readerThemes } from '../theme';
 import type { BookContent, Chapter, ContextualSupplement, ReaderPreferences, ReaderThemeName } from '../types';
 import { styles } from './readerStyles';
@@ -27,7 +27,7 @@ export function ChaptersPanel({ activeTheme, preferences, onClose, navigationSta
               <Pressable
                 accessibilityRole="button"
                 onPress={() => goToParagraph(navigationStart)}
-                style={({ pressed }) => [styles.startReadingRow, pressed && styles.controlPressed]}
+                style={styles.startReadingRow}
               >
                 <Text style={[styles.startReadingTitle, { color: activeTheme.foreground }]}>Start reading</Text>
                 <Text style={[styles.startReadingBody, { color: activeTheme.secondary }]}>Skip front matter</Text>
@@ -43,9 +43,8 @@ export function ChaptersPanel({ activeTheme, preferences, onClose, navigationSta
                     accessibilityState={{ selected: chapter === currentChapter }}
                     key={`${chapter.pageIndex ?? 0}-${chapter.paragraphIndex}-${chapter.title}`}
                     onPress={() => goToParagraph(chapter.paragraphIndex)}
-                    style={({ pressed }) => [styles.chapterRow, { marginLeft: Math.min(28, (chapter.level ?? 0) * 10) },
-                      chapter === currentChapter && { backgroundColor: activeTheme.foreground + '0D' },
-                      pressed && styles.controlPressed]}
+                    style={[styles.chapterRow, { marginLeft: Math.min(28, (chapter.level ?? 0) * 10) },
+                      chapter === currentChapter && { backgroundColor: activeTheme.foreground + '0D' }]}
                   >
                     <Text style={[styles.chapterTitle, { color: activeTheme.foreground }, chapter.kind === 'part' && { fontWeight: '800' }]}>
                       {chapter.title}
@@ -94,7 +93,7 @@ export function ContextPanel({ activeTheme, preferences, onClose, currentSupplem
   );
 }
 
-export function SettingsPanel({ activeTheme, preferences, onClose, onPreferencesChange, themeOptions, onImproveParsing, isImprovingParsing }: PanelProps & { onPreferencesChange: (preferences: ReaderPreferences) => void; themeOptions: [ReaderThemeName, Theme][]; onImproveParsing?: () => void; isImprovingParsing: boolean }) {
+export function SettingsPanel({ activeTheme, preferences, onClose, onPreferencesChange, themeOptions }: PanelProps & { onPreferencesChange: (preferences: ReaderPreferences) => void; themeOptions: [ReaderThemeName, Theme][] }) {
   return (
     <View
             style={[
@@ -125,10 +124,9 @@ export function SettingsPanel({ activeTheme, preferences, onClose, onPreferences
                     fontSize: Math.max(18, preferences.fontSize - 2),
                   })
                 }
-                style={({ pressed }) => [
+                style={[
                   styles.sizeButton,
                   { borderColor: activeTheme.secondary + '40' },
-                  pressed && styles.controlPressed,
                 ]}
               >
                 <Text style={[styles.sizeSmall, { color: activeTheme.foreground }]}>A</Text>
@@ -145,10 +143,9 @@ export function SettingsPanel({ activeTheme, preferences, onClose, onPreferences
                     fontSize: Math.min(32, preferences.fontSize + 2),
                   })
                 }
-                style={({ pressed }) => [
+                style={[
                   styles.sizeButton,
                   { borderColor: activeTheme.secondary + '40' },
-                  pressed && styles.controlPressed,
                 ]}
               >
                 <Text style={[styles.sizeLarge, { color: activeTheme.foreground }]}>A</Text>
@@ -186,27 +183,6 @@ export function SettingsPanel({ activeTheme, preferences, onClose, onPreferences
                 );
               })}
             </View>
-            {onImproveParsing ? (
-              <Pressable
-                accessibilityHint="Reprocesses this book and changes it only if your position can be preserved"
-                accessibilityLabel="Improve parsing"
-                accessibilityRole="button"
-                disabled={isImprovingParsing}
-                onPress={onImproveParsing}
-                style={({ pressed }) => [
-                  styles.improveButton,
-                  { borderColor: activeTheme.secondary + '40' },
-                  pressed && styles.controlPressed,
-                ]}
-              >
-                {isImprovingParsing ? <ActivityIndicator color={activeTheme.secondary} /> : (
-                  <View>
-                    <Text style={[styles.improveTitle, { color: activeTheme.foreground }]}>Improve parsing</Text>
-                    <Text style={[styles.improveBody, { color: activeTheme.secondary }]}>Re-detect structure without losing your place</Text>
-                  </View>
-                )}
-              </Pressable>
-            ) : null}
           </View>
   );
 }

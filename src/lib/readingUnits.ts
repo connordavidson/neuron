@@ -1,5 +1,8 @@
 import type { ContentBlock, ReadingUnit, SectionNode, SourceAnchor } from '../types';
-import { sentenceSpans } from './sentences';
+import { sentenceSpans, type SentenceSpan } from './sentences';
+
+// A conservative reading-length target, not a guarantee of rendered line count.
+export const MAX_READING_UNIT_WORDS = 32;
 
 export type ReadingPassageSegment = {
   start: number;
@@ -35,43 +38,60 @@ export function generateReadingUnits(passages: ReadingPassage[], proposals: numb
     const spans = sentenceSpans(passage.text, proposals[passageIndex]);
     for (let index = 0; index < spans.length; index += 2) {
       const pair = spans.slice(index, index + 2);
-      const first = pair[0]!;
-      const last = pair.at(-1)!;
-      const start = first.start;
-      const end = last.start + last.text.length;
-      const startSegment = segmentAt(passage.segments, start);
-      const endSegment = segmentAt(passage.segments, Math.max(start, end - 1));
-      const sourcePages = unique(passage.segments.filter((segment) => segment.end > start && segment.start < end)
-        .map(({ block }) => block.anchor.pageIndex));
-      const text = pair.map(({ text: sentence }) => sentence).join(' ');
-      const anchor = anchorWithinSegment(startSegment, start - startSegment.start, text);
-      const endAnchor = anchorWithinSegment(endSegment, Math.max(0, end - endSegment.start), text);
-      const sentences = pair.map((sentence) => {
-        const sentenceStartSegment = segmentAt(passage.segments, sentence.start);
-        const sentenceEnd = sentence.start + sentence.text.length;
-        const sentenceEndSegment = segmentAt(passage.segments, Math.max(sentence.start, sentenceEnd - 1));
-        return {
-          text: sentence.text,
-          anchor: anchorWithinSegment(sentenceStartSegment, sentence.start - sentenceStartSegment.start, sentence.text),
-          endAnchor: anchorWithinSegment(sentenceEndSegment, Math.max(0, sentenceEnd - sentenceEndSegment.start), sentence.text),
-        };
-      });
-      units.push({
-        id: `unit-${units.length}`,
-        text,
-        sentenceCount: pair.length,
-        sectionId: passage.section.id,
-        heading: index === 0 ? passage.section.title : undefined,
-        anchor,
-        endAnchor,
-        sourcePages,
-        wordCount: text.match(/\S+/gu)?.length ?? 0,
-        supplementIds: [],
-        sentences,
+      const groups = pair.length === 2 && countWords(pair.map(({ text }) => text).join(' ')) > MAX_READING_UNIT_WORDS
+        ? pair.map((sentence) => [sentence]) : [pair];
+      groups.forEach((group, groupIndex) => {
+        units.push(createReadingUnit(passage, group, units.length, index === 0 && groupIndex === 0));
       });
     }
   });
   return units;
+}
+
+function countWords(text: string): number {
+  return text.match(/\S+/gu)?.length ?? 0;
+}
+
+function createReadingUnit(
+  passage: ReadingPassage,
+  spans: SentenceSpan[],
+  unitIndex: number,
+  firstInPassage: boolean,
+): ReadingUnit {
+  const first = spans[0]!;
+  const last = spans.at(-1)!;
+  const start = first.start;
+  const end = last.start + last.text.length;
+  const startSegment = segmentAt(passage.segments, start);
+  const endSegment = segmentAt(passage.segments, Math.max(start, end - 1));
+  const sourcePages = unique(passage.segments.filter((segment) => segment.end > start && segment.start < end)
+    .map(({ block }) => block.anchor.pageIndex));
+  const text = spans.map(({ text: sentence }) => sentence).join(' ');
+  const anchor = anchorWithinSegment(startSegment, start - startSegment.start, text);
+  const endAnchor = anchorWithinSegment(endSegment, Math.max(0, end - endSegment.start), text);
+  const sentences = spans.map((sentence) => {
+    const sentenceStartSegment = segmentAt(passage.segments, sentence.start);
+    const sentenceEnd = sentence.start + sentence.text.length;
+    const sentenceEndSegment = segmentAt(passage.segments, Math.max(sentence.start, sentenceEnd - 1));
+    return {
+      text: sentence.text,
+      anchor: anchorWithinSegment(sentenceStartSegment, sentence.start - sentenceStartSegment.start, sentence.text),
+      endAnchor: anchorWithinSegment(sentenceEndSegment, Math.max(0, sentenceEnd - sentenceEndSegment.start), sentence.text),
+    };
+  });
+  return {
+    id: `unit-${unitIndex}`,
+    text,
+    sentenceCount: spans.length,
+    sectionId: passage.section.id,
+    heading: firstInPassage ? passage.section.title : undefined,
+    anchor,
+    endAnchor,
+    sourcePages,
+    wordCount: countWords(text),
+    supplementIds: [],
+    sentences,
+  };
 }
 
 export function remapReadingPosition(anchor: SourceAnchor | undefined, units: ReadingUnit[]): {
@@ -83,6 +103,19 @@ export function remapReadingPosition(anchor: SourceAnchor | undefined, units: Re
   if (!anchor) return { index: 0, confidence: 0, evidence: ['old position had no source anchor'] };
   const exact = units.findIndex((unit) => unit.anchor.contextHash === anchor.contextHash);
   if (exact >= 0) return { index: exact, confidence: 0.995, evidence: ['exact normalized context hash'] };
+  // Splitting an old pair shortens its context without moving its source start.
+  // Require both coordinates and a unique complete text prefix; otherwise use
+  // the existing similarity fallback.
+  const oldContext = normalizeContext(anchor.contextText ?? '');
+  const sameStart = units.map((unit, index) => ({ unit, index })).filter(({ unit }) => {
+    const context = normalizeContext(unit.anchor.contextText ?? unit.text);
+    return unit.anchor.pageIndex === anchor.pageIndex && unit.anchor.sourceStart === anchor.sourceStart
+      && context.length > 0 && oldContext.startsWith(context + ' ');
+  });
+  if (sameStart.length === 1) {
+    return { index: sameStart[0]!.index, confidence: 0.99,
+      evidence: ['same source PDF page and starting offset', 'new unit is a complete prefix of the old context'] };
+  }
   const scored = units.map((unit, index) => {
     const context = contextSimilarity(anchor.contextText ?? '', unit.anchor.contextText ?? unit.text);
     const samePage = unit.sourcePages.includes(anchor.pageIndex);

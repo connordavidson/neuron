@@ -31,7 +31,6 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 42,
   },
-  controlPressed: { opacity: 0.6, transform: [{ scale: 0.96 }] },
   backGlyph: { fontSize: 36, fontWeight: '300', lineHeight: 37, marginTop: -3 },
   settingsGlyph: { fontFamily: 'Georgia', fontSize: 15, fontWeight: '700' },
   chaptersGlyph: { fontSize: 18, fontWeight: '700' },
@@ -117,7 +116,4 @@ export const styles = StyleSheet.create({
   supplementRow: { borderBottomColor: '#E5E1E9', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13 },
   supplementKind: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
   supplementText: { fontFamily: 'Georgia', fontSize: 15, lineHeight: 22, marginTop: 5 },
-  improveButton: { borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 18, minHeight: 58, paddingHorizontal: 14 },
-  improveTitle: { fontSize: 14, fontWeight: '700' },
-  improveBody: { fontSize: 11, marginTop: 3 },
 });

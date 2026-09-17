@@ -1,6 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { CHAPTER_VERSION, detectBookStructure } from './bookStructure';
-import { CONTENT_PARSER_VERSION, remapReadingPosition, sourceAnchorForLegacy } from './contentParser';
 import { contentFromParsed, defaultPreferences } from './bookContent';
 import { sortLibrary } from './libraryOrder';
 import { buildReadingOffsets, summaryAtPosition } from './readingPosition';
@@ -9,10 +8,10 @@ import type { BookContent, BookSummary, ReaderPreferences, StoredBook } from '..
 
 export type ActiveBook = { summary: BookSummary; content: BookContent; offsets: number[] };
 export type PDFSource = { uri: string; name?: string };
-export type LibraryState = { books: BookSummary[]; preferences: ReaderPreferences; activeBook: ActiveBook | null; isLoading: boolean; isImporting: boolean; openingBookID: string | null; improvingBookID: string | null; updatingChapterIDs: string[] };
+export type LibraryState = { books: BookSummary[]; preferences: ReaderPreferences; activeBook: ActiveBook | null; isLoading: boolean; isImporting: boolean; openingBookID: string | null; updatingChapterIDs: string[] };
 
 export class LibraryController {
-  state: LibraryState = { books: [], preferences: defaultPreferences, activeBook: null, isLoading: true, isImporting: false, openingBookID: null, improvingBookID: null, updatingChapterIDs: [] };
+  state: LibraryState = { books: [], preferences: defaultPreferences, activeBook: null, isLoading: true, isImporting: false, openingBookID: null, updatingChapterIDs: [] };
   private booksRef = { current: [] as BookSummary[] };
   private activeBookRef = { current: null as ActiveBook | null };
   private contentCache = { current: new Map<string, { content: BookContent; offsets: number[] }>() };
@@ -95,8 +94,7 @@ export class LibraryController {
       });
       await this.mutateBook(id, async () => {
         const cached = this.contentCache.current.get(id);
-        if (this.deleted.has(id) || !cached || cached.content.layoutRevision !== content.layoutRevision
-          || this.state.improvingBookID === id) return;
+        if (this.deleted.has(id) || !cached || cached.content.layoutRevision !== content.layoutRevision) return;
         const metadata = { chapters, chapterVersion: CHAPTER_VERSION, layoutRevision: content.layoutRevision };
         await this.services.storage.storeChapterMetadata(id, metadata);
         if (this.deleted.has(id)) return;
@@ -215,64 +213,6 @@ export class LibraryController {
   updatePreferences = (nextPreferences: ReaderPreferences) => {
     this.set('preferences', nextPreferences);
     void this.services.storage.persistPreferences(nextPreferences);
-  };
-
-  improveParsing = async () => {
-    const current = this.activeBookRef.current;
-    if (!current || this.state.improvingBookID) return;
-    const id = current.summary.id;
-    const session = this.readerSession;
-    const revision = current.content.layoutRevision;
-    this.set('improvingBookID', id);
-    const stillCurrent = () => !this.deleted.has(id) && this.readerSession === session
-      && this.activeBookRef.current?.content.layoutRevision === revision;
-    try {
-      const extraction = await this.services.extract(this.services.resolvePDF(id, current.content.pdfUri));
-      if (!stillCurrent()) return;
-      const parsed = await this.services.parse(extraction, current.summary.originalFileName, this.services.tokenize);
-      if (!stillCurrent()) return;
-      if (!parsed.paragraphs.length) throw new Error('The new parser could not find readable prose in this PDF.');
-      const content = contentFromParsed(parsed, current.content.pdfUri, this.services.createID());
-      const offsets = buildReadingOffsets(content);
-      const remap = (summary: BookSummary) => {
-        const index = summary.currentParagraph;
-        const anchor = summary.currentAnchor ?? current.content.readingUnits?.[index]?.anchor
-          ?? sourceAnchorForLegacy(current.content.paragraphs[index] ?? '', current.content.paragraphPages?.[index] ?? 0);
-        return remapReadingPosition(anchor, parsed.readingUnits);
-      };
-      await this.mutateBook(id, async () => {
-        if (!stillCurrent()) return;
-        const latest = this.booksRef.current.find(book => book.id === id)!;
-        if (remap(latest).confidence < 0.9) {
-          this.services.notify('Kept your current layout', 'The improved parser could not match your exact reading position with at least 90% confidence, so nothing was changed.');
-          return;
-        }
-        await this.services.storage.storeBookContent(id, content);
-        if (this.deleted.has(id)) return; // The queued removal runs after this write.
-        const newest = this.booksRef.current.find(book => book.id === id);
-        if (!newest) return;
-        // Movement can continue while storage writes. Map that latest old-layout
-        // position too; an uncertain match restores the previous saved layout.
-        const position = remap(newest);
-        if (position.confidence < 0.9) {
-          await this.services.storage.storeBookContent(id, current.content);
-          return;
-        }
-        const summary = summaryAtPosition({ ...newest, title: parsed.metadata.title.value,
-          parserVersion: CONTENT_PARSER_VERSION }, content, offsets, position.index);
-        this.contentCache.current.set(id, { content, offsets });
-        this.saveLibrary(this.booksRef.current.map(book => book.id === id ? summary : book));
-        const active = this.activeBookRef.current;
-        if (active?.summary.id === id && active.content.layoutRevision === revision) {
-          this.showBook({ summary, content, offsets });
-          this.services.notify('Parsing improved', 'The book was reprocessed and your reading position was preserved.');
-        }
-      });
-    } catch (error) {
-      if (stillCurrent()) this.services.notify('Couldn’t improve parsing', friendlyErrorMessage(error));
-    } finally {
-      this.set('improvingBookID', null);
-    }
   };
 
   closeReader = (paragraph: number, session = this.readerSession) => {

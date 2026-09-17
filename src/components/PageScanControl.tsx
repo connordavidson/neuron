@@ -93,7 +93,7 @@ export function PageScanControl({
             accessibilityState={{ disabled: locked, busy: state.busy }}
             disabled={locked}
             onPress={() => sessionRef.current?.open()}
-            style={({ pressed }) => [styles.scanButton, { backgroundColor: theme.background, borderColor: theme.secondary + '50' }, (pressed || locked) && styles.dimmed]}
+            style={[styles.scanButton, { backgroundColor: theme.background, borderColor: theme.secondary + '50' }, locked && styles.dimmed]}
           >
             {state.busy ? <ActivityIndicator color={theme.secondary} /> : null}
             <Text style={[styles.actionText, textColor]}>{state.busy ? 'Finishing scan…' : 'Scan page'}</Text>
@@ -136,7 +136,7 @@ export function PageScanControl({
                       accessibilityState={{ disabled: state.busy }}
                       disabled={state.busy}
                       onPress={() => { void sessionRef.current?.start(); }}
-                      style={({ pressed }) => [styles.primaryButton, { backgroundColor: theme.foreground }, (pressed || state.busy) && styles.dimmed]}
+                      style={[styles.primaryButton, { backgroundColor: theme.foreground }, state.busy && styles.dimmed]}
                     >
                       <Text style={[styles.actionText, { color: theme.background }]}>{state.phase === 'error' ? 'Scan again' : 'Open camera'}</Text>
                     </Pressable>

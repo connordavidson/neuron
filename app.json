@@ -13,6 +13,7 @@
       "bundleIdentifier": "com.example.flowreader",
       "supportsTablet": true,
       "infoPlist": {
+        "NSLocalNetworkUsageDescription": "FlowReader connects to the Expo development server on your Mac to load the app during development.",
         "NSCameraUsageDescription": "Scan a page in your physical book to find your place in the ebook. Scans are processed on your device.",
         "CFBundleDocumentTypes": [
           {
@@ -27,6 +28,6 @@
         "LSSupportsOpeningDocumentsInPlace": true
       }
     },
-    "plugins": ["expo-document-picker"]
+    "plugins": ["expo-document-picker", "./plugins/withNonblockingDevBundle"]
   }
 }
