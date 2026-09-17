@@ -342,6 +342,8 @@ export function ReaderScreen({
                     accessibilityState={{ selected: chapter === currentChapter }}
                     key={`${chapter.pageIndex ?? 0}-${chapter.paragraphIndex}-${chapter.title}`}
                     onPress={() => goToParagraph(chapter.paragraphIndex)}
+                    // Let scrolling claim the touch before showing pressed feedback.
+                    unstable_pressDelay={130}
                     style={({ pressed }) => [styles.chapterRow, { marginLeft: Math.min(28, (chapter.level ?? 0) * 10) },
                       chapter === currentChapter && { backgroundColor: activeTheme.foreground + '0D' },
                       pressed && styles.controlPressed]}
