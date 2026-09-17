@@ -212,10 +212,9 @@ export function ReaderScreen({
             accessibilityRole="button"
             hitSlop={8}
             onPress={() => onClose(session.index)}
-            style={({ pressed }) => [
+            style={[
               styles.roundControl,
               { backgroundColor: activeTheme.foreground + '12' },
-              pressed && styles.controlPressed,
             ]}
           >
             <Text style={[styles.backGlyph, { color: activeTheme.foreground }]}>‹</Text>
@@ -244,10 +243,9 @@ export function ReaderScreen({
                   setShowSettings(false);
                   setChrome(true);
                 }}
-                style={({ pressed }) => [
+                style={[
                   styles.roundControl,
                   { backgroundColor: activeTheme.foreground + '12' },
-                  pressed && styles.controlPressed,
                 ]}
               >
                 <Text style={[styles.contextGlyph, { color: activeTheme.foreground }]}>†</Text>
@@ -263,10 +261,9 @@ export function ReaderScreen({
                 setShowContext(false);
                 setChrome(true);
               }}
-              style={({ pressed }) => [
+              style={[
                 styles.roundControl,
                 { backgroundColor: activeTheme.foreground + '12' },
-                pressed && styles.controlPressed,
               ]}
             >
               <Text style={[styles.chaptersGlyph, { color: activeTheme.foreground }]}>☰</Text>
@@ -281,10 +278,9 @@ export function ReaderScreen({
                 setShowContext(false);
                 setChrome(true);
               }}
-              style={({ pressed }) => [
+              style={[
                 styles.roundControl,
                 { backgroundColor: activeTheme.foreground + '12' },
-                pressed && styles.controlPressed,
               ]}
             >
               <Text style={[styles.settingsGlyph, { color: activeTheme.foreground }]}>Aa</Text>
@@ -326,7 +322,7 @@ export function ReaderScreen({
               <Pressable
                 accessibilityRole="button"
                 onPress={() => goToParagraph(navigationStart)}
-                style={({ pressed }) => [styles.startReadingRow, pressed && styles.controlPressed]}
+                style={styles.startReadingRow}
               >
                 <Text style={[styles.startReadingTitle, { color: activeTheme.foreground }]}>Start reading</Text>
                 <Text style={[styles.startReadingBody, { color: activeTheme.secondary }]}>Skip front matter</Text>
@@ -342,11 +338,8 @@ export function ReaderScreen({
                     accessibilityState={{ selected: chapter === currentChapter }}
                     key={`${chapter.pageIndex ?? 0}-${chapter.paragraphIndex}-${chapter.title}`}
                     onPress={() => goToParagraph(chapter.paragraphIndex)}
-                    // Let scrolling claim the touch before showing pressed feedback.
-                    unstable_pressDelay={130}
-                    style={({ pressed }) => [styles.chapterRow, { marginLeft: Math.min(28, (chapter.level ?? 0) * 10) },
-                      chapter === currentChapter && { backgroundColor: activeTheme.foreground + '0D' },
-                      pressed && styles.controlPressed]}
+                    style={[styles.chapterRow, { marginLeft: Math.min(28, (chapter.level ?? 0) * 10) },
+                      chapter === currentChapter && { backgroundColor: activeTheme.foreground + '0D' }]}
                   >
                     <Text style={[styles.chapterTitle, { color: activeTheme.foreground }, chapter.kind === 'part' && { fontWeight: '800' }]}>
                       {chapter.title}
@@ -422,10 +415,9 @@ export function ReaderScreen({
                     fontSize: Math.max(18, preferences.fontSize - 2),
                   })
                 }
-                style={({ pressed }) => [
+                style={[
                   styles.sizeButton,
                   { borderColor: activeTheme.secondary + '40' },
-                  pressed && styles.controlPressed,
                 ]}
               >
                 <Text style={[styles.sizeSmall, { color: activeTheme.foreground }]}>A</Text>
@@ -442,10 +434,9 @@ export function ReaderScreen({
                     fontSize: Math.min(32, preferences.fontSize + 2),
                   })
                 }
-                style={({ pressed }) => [
+                style={[
                   styles.sizeButton,
                   { borderColor: activeTheme.secondary + '40' },
-                  pressed && styles.controlPressed,
                 ]}
               >
                 <Text style={[styles.sizeLarge, { color: activeTheme.foreground }]}>A</Text>
@@ -490,10 +481,9 @@ export function ReaderScreen({
                 accessibilityRole="button"
                 disabled={isImprovingParsing}
                 onPress={onImproveParsing}
-                style={({ pressed }) => [
+                style={[
                   styles.improveButton,
                   { borderColor: activeTheme.secondary + '40' },
-                  pressed && styles.controlPressed,
                 ]}
               >
                 {isImprovingParsing ? <ActivityIndicator color={activeTheme.secondary} /> : (
@@ -596,7 +586,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 42,
   },
-  controlPressed: { opacity: 0.6, transform: [{ scale: 0.96 }] },
   backGlyph: { fontSize: 36, fontWeight: '300', lineHeight: 37, marginTop: -3 },
   settingsGlyph: { fontFamily: 'Georgia', fontSize: 15, fontWeight: '700' },
   chaptersGlyph: { fontSize: 18, fontWeight: '700' },

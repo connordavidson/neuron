@@ -69,7 +69,7 @@ export function LibraryScreen({
             accessibilityRole="button"
             disabled={isImporting}
             onPress={onImport}
-            style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}
+            style={styles.addButton}
           >
             <Text style={styles.addButtonGlyph}>＋</Text>
           </Pressable>
@@ -149,7 +149,7 @@ function EmptyLibrary({ onImport }: { onImport: () => void }) {
       <Pressable
         accessibilityRole="button"
         onPress={onImport}
-        style={({ pressed }) => [styles.importButton, pressed && styles.buttonPressed]}
+        style={styles.importButton}
       >
         <Text style={styles.importButtonIcon}>↓</Text>
         <Text style={styles.importButtonText}>Import a PDF</Text>
@@ -239,7 +239,7 @@ function BookCard({
       disabled={isOpening}
       onPressIn={() => { moved.current = false; }}
       onPress={() => { if (moved.current) return; if (isRevealed) onReveal(false); else onOpen(); }}
-      style={({ pressed }) => [styles.bookCard, pressed && styles.cardPressed]}
+      style={styles.bookCard}
     >
       <View style={styles.cover}>
         <View style={styles.coverCircleLarge} />
@@ -321,7 +321,6 @@ const styles = StyleSheet.create({
     width: 46,
   },
   addButtonGlyph: { color: colors.brand, fontSize: 28, fontWeight: '400', lineHeight: 30 },
-  buttonPressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   searchShell: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -416,7 +415,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
   },
-  cardPressed: { backgroundColor: '#FBFAFC', transform: [{ scale: 0.995 }] },
   cover: {
     alignItems: 'center',
     backgroundColor: colors.brand,
@@ -459,12 +457,12 @@ const styles = StyleSheet.create({
   progressFill: { backgroundColor: colors.brand, borderRadius: 3, height: '100%' },
   progressLabel: { color: colors.muted, fontSize: 11, minWidth: 59, textAlign: 'right' },
   swipeShell: { borderRadius: 20, overflow: 'hidden' },
-  // Keep Delete covered when the inner card shrinks under a normal press.
+  // Keep an opaque surface between the book and the swipe-revealed action.
   bookSwipeSurface: { backgroundColor: colors.surface, borderRadius: 20 },
   deleteAction: {
     alignItems: 'center',
     backgroundColor: '#C93434',
-    borderRadius: 14,
+    borderRadius: 24,
     height: 48,
     position: 'absolute', top: '50%', right: (DELETE_REVEAL_WIDTH - 48) / 2,
     marginTop: -24,
