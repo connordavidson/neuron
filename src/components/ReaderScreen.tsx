@@ -297,6 +297,18 @@ export function ReaderScreen({
           theme={activeTheme}
         />
 
+        {showChapters || showSettings ? (
+          <Pressable
+            accessibilityLabel="Dismiss reader panel"
+            accessibilityRole="button"
+            onPress={() => {
+              setShowChapters(false);
+              setShowSettings(false);
+            }}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : null}
+
         {showChapters ? (
           <View
             style={[
