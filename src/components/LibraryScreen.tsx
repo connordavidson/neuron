@@ -219,7 +219,16 @@ function BookCard({
         pointerEvents={isRevealed ? 'auto' : 'none'}
         onPress={onDelete}
         style={styles.deleteAction}
-      ><Text style={styles.deleteLabel}>Delete</Text></Pressable>
+      >
+        <View accessible={false} importantForAccessibility="no-hide-descendants" style={styles.trashIcon}>
+          <View style={styles.trashHandle} />
+          <View style={styles.trashLid} />
+          <View style={styles.trashBody}>
+            <View style={styles.trashLine} />
+            <View style={styles.trashLine} />
+          </View>
+        </View>
+      </Pressable>
       <Animated.View collapsable={false} {...panResponder.panHandlers} style={[styles.bookSwipeSurface, { transform: [{ translateX: translation }] }]}>
     <Pressable
       accessibilityHint="Opens the reader. Swipe left to reveal Delete."
@@ -455,11 +464,18 @@ const styles = StyleSheet.create({
   deleteAction: {
     alignItems: 'center',
     backgroundColor: '#C93434',
-    position: 'absolute', top: 0, right: 0, bottom: 0,
+    borderRadius: 14,
+    height: 48,
+    position: 'absolute', top: '50%', right: (DELETE_REVEAL_WIDTH - 48) / 2,
+    marginTop: -24,
     justifyContent: 'center',
-    width: DELETE_REVEAL_WIDTH,
+    width: 48,
   },
-  deleteLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  trashIcon: { width: 20, height: 22 },
+  trashHandle: { position: 'absolute', top: 0, left: 6, width: 8, height: 5, borderColor: '#FFFFFF', borderWidth: 2, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
+  trashLid: { position: 'absolute', top: 4, width: 20, height: 2, borderRadius: 1, backgroundColor: '#FFFFFF' },
+  trashBody: { position: 'absolute', top: 7, left: 3, width: 14, height: 14, borderColor: '#FFFFFF', borderWidth: 2, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, flexDirection: 'row', justifyContent: 'space-evenly', paddingVertical: 2 },
+  trashLine: { width: 1.5, backgroundColor: '#FFFFFF', borderRadius: 1 },
   overlay: {
     alignItems: 'center',
     backgroundColor: 'rgba(19, 16, 28, 0.25)',
