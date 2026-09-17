@@ -220,7 +220,7 @@ function BookCard({
         onPress={onDelete}
         style={styles.deleteAction}
       ><Text style={styles.deleteLabel}>Delete</Text></Pressable>
-      <Animated.View collapsable={false} {...panResponder.panHandlers} style={{ transform: [{ translateX: translation }] }}>
+      <Animated.View collapsable={false} {...panResponder.panHandlers} style={[styles.bookSwipeSurface, { transform: [{ translateX: translation }] }]}>
     <Pressable
       accessibilityHint="Opens the reader. Swipe left to reveal Delete."
       accessibilityLabel={`${book.title}, ${progressLabel}`}
@@ -450,6 +450,8 @@ const styles = StyleSheet.create({
   progressFill: { backgroundColor: colors.brand, borderRadius: 3, height: '100%' },
   progressLabel: { color: colors.muted, fontSize: 11, minWidth: 59, textAlign: 'right' },
   swipeShell: { borderRadius: 20, overflow: 'hidden' },
+  // Keep Delete covered when the inner card shrinks under a normal press.
+  bookSwipeSurface: { backgroundColor: colors.surface, borderRadius: 20 },
   deleteAction: {
     alignItems: 'center',
     backgroundColor: '#C93434',
