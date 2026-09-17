@@ -1,5 +1,11 @@
 # Local PDF import validation - September 13, 2026
 
+Historical baseline: these failures were reproduced before the reader refactor.
+Parser 11 / chapter metadata 5 now pass the checked chapter destinations, reading
+starts and forbidden-navigation rules in both modes. See
+[refactor validation](../refactor-validation.md) for current results and limits.
+The chart companion still does not establish chart/table reading support.
+
 The broader import check fails chapter accuracy on all four requested PDFs, in both structured and text-only parsing. These are additional failures beyond the Behave fix. The progress calculation remains numerically valid, but missing or incorrect navigation makes the chapter markers misleading.
 
 Tested on `codex/reading-progress-mockups`, with content parser version 9 and chapter metadata version 4. This round adds an audit and repeatable checks; it does not fix these newly identified parser defects.

@@ -1,7 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadSource } = require('./loadSource.cjs');
-const { splitSentences, repairQuotationBoundaries, paragraphizePagesWithMetadata } = loadSource('src/lib/paragraphize.ts');
+const { splitSentences } = loadSource('src/lib/sentences.ts');
+const { repairQuotationBoundaries } = loadSource('src/lib/paragraphize.ts');
+const { paragraphizePagesWithMetadata } = require('./helpers/productionCards.cjs');
 const { detectSourceChapters, detectBookStructure, currentChapterAt } = loadSource('src/lib/bookStructure.ts');
 const { sortLibrary } = loadSource('src/lib/libraryOrder.ts');
 
@@ -14,8 +16,8 @@ test('closing straight, curly, and nested quotes stay with their sentence', () =
   }
 });
 
-test('two-sentence cards include the second sentence’s closing quotation', () => {
-  const cards = paragraphizePagesWithMetadata(['The journey begins. She said “We are ready.” They left together. The road was quiet.']);
+test('two-sentence cards include the second sentence’s closing quotation', async () => {
+  const cards = await paragraphizePagesWithMetadata(['The journey begins. She said “We are ready.” They left together. The road was quiet.']);
   assert.deepEqual(cards.map(c => c.text), ['The journey begins. She said “We are ready.”', 'They left together. The road was quiet.']);
 });
 
@@ -81,9 +83,9 @@ test('navigation-only repair restores numbered outline chapters without promotin
   assert.deepEqual(paragraphs, snapshot);
 });
 
-test('new imports do not pair sentences across chapter boundaries', () => {
+test('new imports do not pair sentences across chapter boundaries', async () => {
   const pages = ['Chapter 1\nFirst sentence. Second sentence. Third sentence.', 'Chapter 2\nFourth sentence. Fifth sentence.'];
-  const records = paragraphizePagesWithMetadata(pages, detectSourceChapters(pages));
+  const records = await paragraphizePagesWithMetadata(pages, detectSourceChapters(pages));
   assert.deepEqual(records.map(c => c.text), ['First sentence. Second sentence.', 'Third sentence.', 'Fourth sentence. Fifth sentence.']);
 });
 

@@ -1,3 +1,4 @@
+import { PROGRESS_EXCLUDED_KINDS } from './parser/policy';
 import type { BookContent, BookSummary } from '../types';
 
 export function clampReadingIndex(index: number, count: number): number {
@@ -37,9 +38,7 @@ export class ReadingSession {
 // the current page, so a page with two long sentences weighs more than a short one.
 export function buildReadingOffsets(content: BookContent): number[] {
   const start = clampReadingIndex(content.readingStart, content.paragraphs.length);
-  const optionalKinds = new Set(['cover', 'titlePage', 'copyright', 'dedication', 'contents', 'unknownFront',
-    'notes', 'bibliography', 'index', 'aboutAuthor', 'colophon', 'unknownBack']);
-  const optionalSections = new Set(content.sections?.filter(section => optionalKinds.has(section.kind)).map(section => section.id));
+  const optionalSections = new Set(content.sections?.filter(section => PROGRESS_EXCLUDED_KINDS.has(section.kind)).map(section => section.id));
   const offsets = [0];
   for (let index = 0; index < content.paragraphs.length; index += 1) {
     const sectionId = content.readingUnits?.[index]?.sectionId;

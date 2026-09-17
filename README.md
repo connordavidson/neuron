@@ -86,6 +86,30 @@ The locked scorecard gates title accuracy, chapter/part precision and recall, se
 
 ## Checks
 
-The [local PDF import audit](design/progress-mockups/import-validation.md) records the current failures found in the Dalio PDFs and 7 Habits. With the private PDF/extraction manifest available, `node tools/validate_local_imports.cjs tmp/import-validation/manifest.json tmp/import-validation/results.json` checks the expected chapter pages in both extraction modes and returns a failing status for unresolved defects. These private-file checks run separately from the portable unit suite.
+The [local PDF import audit](design/progress-mockups/import-validation.md) records the original failures found in the Dalio PDFs and 7 Habits. Parser version 11 and chapter version 5 now pass the checked prose chapter destinations, reading starts, and forbidden-navigation checks in both extraction modes; see [refactor validation](design/refactor-validation.md). With the private PDF/extraction manifest available, `node tools/validate_local_imports.cjs tmp/import-validation/manifest.json tmp/import-validation/results.json` checks the expected chapter pages in both extraction modes and returns a failing status for unresolved defects. `node tools/check_prose_imports.cjs MANIFEST OUTPUT_JSON` gates the three prose books separately from the chart companion. These private-file checks run separately from the portable unit suite.
 
 Run `npm test` for parser, sentence, resume, progress, persistence, and page-alignment regressions; run `npm run typecheck` for TypeScript checks. After installing the Python requirements, `npm run test:corpus` generates and verifies temporary fixture PDFs, extraction JSON, rendered pages, control layouts, evaluation gates, and a scorecard. On iOS, verify opening a saved book deep into the text, swiping both directions, jumping to a section, closing/reopening, and restarting the app. Each reopen should restore the same text and percentage. Check long text and resizing as well: text must remain accessible and the progress bar must stay clear of the prose and controls. Check chapter marker spacing, paper/sepia/night contrast, and tapping the page to hide/show the bar. VoiceOver should expose the book percentage and current chapter.
+
+## Implementation boundaries
+
+`App.tsx` presents the library/reader and handles document-picker and incoming-URL
+UI. `LibraryController` owns the book cache, lifecycle, serialized content writes,
+reader sessions and revision checks; `useLibraryController` connects its state to
+React. Native, persistence, clock and scheduling dependencies are supplied through
+`libraryServices`.
+
+`parseEbook` orchestrates the layout, metadata, section and reading-flow stages in
+`src/lib/parser`. `sourceNavigation` supplies destination-checked heading/outline/
+contents evidence to both fresh parsing and navigation-only refresh. These adapters
+serve different outputs: one creates sections/cards, while the other maps chapters
+onto saved cards. Section policy distinguishes reading start, readable optional
+content, navigation and progress eligibility.
+
+`useReaderNavigation` owns position commits and paging lifecycle. Reader panels
+and shared styles are separate presentation modules. Scan jumps and Undo use the
+same navigation operation as chapter jumps. Native `BookPageScanner` owns camera/
+OCR lifecycle; `PDFTextExtractorModule` retains the public bridge and extraction.
+`paragraphize.ts` contains only saved-book quotation compatibility repair.
+
+The tests-first acceptance baseline, commit gates, known historical failures and
+native/device procedures are documented in `design/refactor-validation.md`.
