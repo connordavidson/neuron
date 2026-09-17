@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   AppState,
   FlatList,
@@ -28,10 +27,8 @@ type Props = {
   content: BookContent;
   readingOffsets: number[];
   updatingChapters?: boolean;
-  isImprovingParsing?: boolean;
   preferences: ReaderPreferences;
   onClose: (paragraph: number) => void;
-  onImproveParsing?: () => void;
   onPreferencesChange: (preferences: ReaderPreferences) => void;
   onProgressChange: (paragraph: number) => void;
 };
@@ -41,10 +38,8 @@ export function ReaderScreen({
   content,
   readingOffsets,
   updatingChapters = false,
-  isImprovingParsing = false,
   preferences,
   onClose,
-  onImproveParsing,
   onPreferencesChange,
   onProgressChange,
 }: Props) {
@@ -298,7 +293,7 @@ export function ReaderScreen({
           visible={chromeVisible && !showSettings && !showChapters && !showContext}
           hiddenByPanel={showSettings || showChapters || showContext}
           opacity={chromeOpacity}
-          disabled={isImprovingParsing || pageHeight <= 0}
+          disabled={pageHeight <= 0}
           theme={activeTheme}
         />
 
@@ -474,26 +469,6 @@ export function ReaderScreen({
                 );
               })}
             </View>
-            {onImproveParsing ? (
-              <Pressable
-                accessibilityHint="Reprocesses this book and changes it only if your position can be preserved"
-                accessibilityLabel="Improve parsing"
-                accessibilityRole="button"
-                disabled={isImprovingParsing}
-                onPress={onImproveParsing}
-                style={[
-                  styles.improveButton,
-                  { borderColor: activeTheme.secondary + '40' },
-                ]}
-              >
-                {isImprovingParsing ? <ActivityIndicator color={activeTheme.secondary} /> : (
-                  <View>
-                    <Text style={[styles.improveTitle, { color: activeTheme.foreground }]}>Improve parsing</Text>
-                    <Text style={[styles.improveBody, { color: activeTheme.secondary }]}>Re-detect structure without losing your place</Text>
-                  </View>
-                )}
-              </Pressable>
-            ) : null}
           </View>
         ) : null}
       </View>
@@ -671,7 +646,4 @@ const styles = StyleSheet.create({
   supplementRow: { borderBottomColor: '#E5E1E9', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13 },
   supplementKind: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
   supplementText: { fontFamily: 'Georgia', fontSize: 15, lineHeight: 22, marginTop: 5 },
-  improveButton: { borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 18, minHeight: 58, paddingHorizontal: 14 },
-  improveTitle: { fontSize: 14, fontWeight: '700' },
-  improveBody: { fontSize: 11, marginTop: 3 },
 });

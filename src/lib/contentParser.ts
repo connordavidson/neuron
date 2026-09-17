@@ -26,7 +26,7 @@ import {
 
 export { hashContext, remapReadingPosition, sourceAnchorForLegacy } from './readingUnits';
 
-export const CONTENT_PARSER_VERSION = 9;
+export const CONTENT_PARSER_VERSION = 10;
 
 export type SentenceTokenizer = (texts: string[]) => Promise<number[][]>;
 

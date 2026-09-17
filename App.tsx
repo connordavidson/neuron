@@ -10,8 +10,6 @@ import { CHAPTER_VERSION, detectBookStructure } from './src/lib/bookStructure';
 import {
   CONTENT_PARSER_VERSION,
   parseEbook,
-  remapReadingPosition,
-  sourceAnchorForLegacy,
 } from './src/lib/contentParser';
 import { sortLibrary } from './src/lib/libraryOrder';
 import { buildReadingOffsets, summaryAtPosition } from './src/lib/readingPosition';
@@ -24,7 +22,6 @@ import {
   persistLibrary,
   persistPreferences,
   storeBook,
-  storeBookContent,
   storeChapterMetadata,
 } from './src/lib/storage';
 import type {
@@ -58,7 +55,6 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [openingBookID, setOpeningBookID] = useState<string | null>(null);
-  const [improvingBookID, setImprovingBookID] = useState<string | null>(null);
   const handledIncomingURLs = useRef(new Set<string>());
   const booksRef = useRef<BookSummary[]>([]);
   const activeBookRef = useRef<ActiveBook | null>(null);
@@ -355,61 +351,6 @@ export default function App() {
     void persistPreferences(nextPreferences);
   }, []);
 
-  const improveParsing = useCallback(async () => {
-    const current = activeBookRef.current;
-    if (!current || improvingBookID) return;
-    setImprovingBookID(current.summary.id);
-    try {
-      const localPDF = new File(Paths.document, 'FlowReader', 'Books', `${current.summary.id}.pdf`);
-      const extraction = await PDFTextExtractor.extract(localPDF.exists ? localPDF.uri : current.content.pdfUri);
-      const parsed = await parseEbook(extraction, current.summary.originalFileName, tokenizeOnDevice);
-      if (!parsed.paragraphs.length) throw new Error('The new parser could not find readable prose in this PDF.');
-      const oldIndex = current.summary.currentParagraph;
-      const oldAnchor = current.summary.currentAnchor
-        ?? current.content.readingUnits?.[oldIndex]?.anchor
-        ?? sourceAnchorForLegacy(current.content.paragraphs[oldIndex] ?? '', current.content.paragraphPages?.[oldIndex] ?? 0);
-      const remapped = remapReadingPosition(oldAnchor, parsed.readingUnits);
-      if (remapped.confidence < 0.9) {
-        Alert.alert(
-          'Kept your current layout',
-          'The improved parser could not match your exact reading position with at least 90% confidence, so nothing was changed.',
-        );
-        return;
-      }
-      const content: BookContent = {
-        pdfUri: current.content.pdfUri,
-        paragraphs: parsed.paragraphs,
-        paragraphPages: parsed.paragraphPages,
-        chapters: parsed.chapters,
-        chapterVersion: CHAPTER_VERSION,
-        readingStart: parsed.readingStart,
-        parserVersion: CONTENT_PARSER_VERSION,
-        metadata: parsed.metadata,
-        sections: parsed.sections,
-        blocks: parsed.blocks,
-        readingUnits: parsed.readingUnits,
-        supplements: parsed.supplements,
-        diagnostics: parsed.diagnostics,
-        layoutRevision: createID(),
-      };
-      const offsets = buildReadingOffsets(content);
-      const summary = summaryAtPosition({
-        ...current.summary,
-        title: parsed.metadata.title.value,
-        parserVersion: CONTENT_PARSER_VERSION,
-      }, content, offsets, remapped.index);
-      await storeBookContent(summary.id, content);
-      contentCache.current.set(summary.id, { content, offsets });
-      saveLibrary(booksRef.current.map((book) => book.id === summary.id ? summary : book));
-      showBook({ summary, content, offsets });
-      Alert.alert('Parsing improved', 'The book was reprocessed and your reading position was preserved.');
-    } catch (error) {
-      Alert.alert('Couldn’t improve parsing', friendlyErrorMessage(error));
-    } finally {
-      setImprovingBookID(null);
-    }
-  }, [improvingBookID, saveLibrary, showBook]);
-
   const closeReader = useCallback(
     (paragraph: number) => {
       const current = activeBookRef.current;
@@ -443,8 +384,6 @@ export default function App() {
             book={activeBook.summary}
             content={activeBook.content}
             readingOffsets={activeBook.offsets}
-            isImprovingParsing={improvingBookID === activeBook.summary.id}
-            onImproveParsing={improveParsing}
             updatingChapters={updatingChapterIDs.includes(activeBook.summary.id)}
             onClose={closeReader}
             onPreferencesChange={updatePreferences}
