@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { loadSource } = require('./loadSource.cjs');
 
-function renderCard() {
+function renderCard(isRevealed = false) {
   const react = {
     createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
     useState: value => [value, () => {}], useRef: value => ({ current: value }),
@@ -28,7 +28,7 @@ function renderCard() {
     onImport() {}, onOpenBook: value => opened.push(value), onDeleteBook: value => deleted.push(value) });
   const list = nodes(screen).find(node => node.type === 'FlatList');
   const element = list.props.renderItem({ item: book });
-  return { tree: element.type(element.props), opened, deleted };
+  return { tree: element.type({ ...element.props, isRevealed }), opened, deleted };
 }
 
 function nodes(node) {
@@ -53,7 +53,9 @@ function backgroundAt(tree, x, pressed) {
   const cardStyle = styleOf(card, pressed);
   const translate = movingStyle.transform.find(value => 'translateX' in value).translateX.value;
   const scale = cardStyle.transform?.find(value => 'scale' in value)?.scale ?? 1;
-  let color = styleOf(action, pressed).backgroundColor;
+  const actionStyle = styleOf(action, pressed);
+  const actionRight = 400 - (actionStyle.right ?? 0);
+  let color = x >= actionRight - actionStyle.width && x <= actionRight ? actionStyle.backgroundColor : undefined;
   if (x >= translate && x <= 400 + translate && movingStyle.backgroundColor) color = movingStyle.backgroundColor;
   if (x >= translate + 200 * (1 - scale) && x <= translate + 200 * (1 + scale)) color = cardStyle.backgroundColor;
   return color;
@@ -81,8 +83,25 @@ test('a deliberate swipe still reveals Delete and does not open the book', () =>
   moving.props.onPanResponderGrant();
   moving.props.onPanResponderMove(null, gesture);
   moving.props.onPanResponderRelease(null, gesture);
-  assert.equal(backgroundAt(tree, 399.5, false), '#C93434');
+  const action = nodes(tree).find(node => node.props.accessibilityLabel === 'Delete Test book');
+  const actionStyle = styleOf(action, false);
+  const actionCenter = 400 - (actionStyle.right ?? 0) - actionStyle.width / 2;
+  assert.equal(backgroundAt(tree, actionCenter, false), '#C93434');
   row.props.onPress();
   assert.equal(opened.length, 0);
   assert.equal(deleted.length, 0);
+});
+
+test('revealed Delete is a compact icon button with an accessible touch target', () => {
+  const { tree, deleted } = renderCard(true);
+  const action = nodes(tree).find(node => node.props.accessibilityLabel === 'Delete Test book');
+  const style = styleOf(action, false);
+  assert.ok(style.width >= 44 && style.width <= 56, 'compact width with a usable touch target');
+  assert.ok(style.height >= 44 && style.height <= 56, 'compact height with a usable touch target');
+  assert.equal(action.props.accessibilityRole, 'button');
+  assert.equal(action.props.accessibilityElementsHidden, false);
+  assert.equal(action.props.pointerEvents, 'auto');
+  assert.ok(!nodes(action).some(node => node.props.children?.includes('Delete')), 'use an icon instead of the visible Delete label');
+  action.props.onPress();
+  assert.equal(deleted.length, 1);
 });
