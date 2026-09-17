@@ -75,33 +75,38 @@ function pressability(row, t) {
   };
   const module = { exports: {} };
   new Function('require', 'module', 'exports', code)(name => name in mocks ? mocks[name] : require(name), module, module.exports);
-  const feedback = [];
+  let pressed = false;
+  const appearance = () => {
+    const style = typeof row.props.style === 'function' ? row.props.style({ pressed }) : row.props.style;
+    return Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
+  };
   const instance = new module.exports.default({
     // These are the public row props forwarded by RN Pressable to Pressability.
     delayPressIn: row.props.unstable_pressDelay, cancelable: row.props.cancelable,
     onPress: row.props.onPress,
-    onPressIn: () => feedback.push('in'), onPressOut: () => feedback.push('out'),
+    onPressIn: () => { pressed = true; }, onPressOut: () => { pressed = false; },
   });
   t.after(() => instance.reset());
   const event = { currentTarget: 1, target: 1, nativeEvent: { pageX: 40, pageY: 40 }, persist() {} };
-  return { handlers: instance.getEventHandlers(), event, feedback };
+  return { handlers: instance.getEventHandlers(), event, appearance };
 }
 
 test('chapter scroll startup does not flash a row or navigate', t => {
   const row = chapterRow();
-  const { handlers, event, feedback } = pressability(row, t);
+  const { handlers, event, appearance } = pressability(row, t);
+  const restingAppearance = appearance();
   handlers.onResponderGrant(event);
   t.mock.timers.tick(75);
-  assert.deepEqual(feedback, [], 'do not highlight while a scroll gesture is starting');
+  assert.deepEqual(appearance(), restingAppearance, 'do not highlight while a scroll gesture is starting');
   assert.equal(handlers.onResponderTerminationRequest(), true);
   handlers.onResponderTerminate(event);
   t.mock.timers.tick(1000);
-  assert.deepEqual(feedback, [], 'a cancelled scroll must not flash later');
+  assert.deepEqual(appearance(), restingAppearance, 'a cancelled scroll must not flash later');
   assert.deepEqual(row.progress, []);
   assert.equal(row.panelOpen(), true);
 });
 
-test('a quick chapter tap navigates immediately on release, even before feedback activates', t => {
+test('a quick chapter tap navigates immediately on release', t => {
   const row = chapterRow();
   const { handlers, event } = pressability(row, t);
   handlers.onResponderGrant(event);
@@ -114,16 +119,17 @@ test('a quick chapter tap navigates immediately on release, even before feedback
   assert.deepEqual(row.progress, [1], 'one tap must produce one chapter jump');
 });
 
-test('holding a chapter row still gives feedback and can yield to scrolling', t => {
+test('holding a chapter row preserves its appearance and can yield to scrolling', t => {
   const row = chapterRow();
-  const { handlers, event, feedback } = pressability(row, t);
+  const { handlers, event, appearance } = pressability(row, t);
+  const restingAppearance = appearance();
   handlers.onResponderGrant(event);
   t.mock.timers.tick(200);
-  assert.deepEqual(feedback, ['in']);
+  assert.deepEqual(appearance(), restingAppearance, 'holding must not shrink, fade, or recolor a chapter');
   assert.equal(handlers.onResponderTerminationRequest(), true);
   handlers.onResponderTerminate(event);
   t.mock.timers.tick(1000);
-  assert.deepEqual(feedback, ['in', 'out']);
+  assert.deepEqual(appearance(), restingAppearance);
   assert.deepEqual(row.progress, []);
   assert.equal(row.panelOpen(), true);
 });

@@ -65,6 +65,7 @@ test('pressing a closed book keeps the Delete color covered at the card edge', (
   const { tree, opened, deleted } = renderCard();
   const row = nodes(tree).find(node => node.props.accessibilityHint);
   row.props.onPressIn();
+  assert.deepEqual(styleOf(row, true), styleOf(row, false), 'pressing must not shrink, fade, or recolor the book');
   for (const pressed of [false, true]) {
     assert.notEqual(backgroundAt(tree, 399.5, pressed), '#C93434', 'the right edge must not reveal Delete during a tap');
   }
