@@ -274,7 +274,7 @@ function ImportingOverlay() {
     <View accessibilityLiveRegion="polite" style={styles.overlay}>
       <View style={styles.importingCard}>
         <ActivityIndicator color={colors.brand} size="large" />
-        <Text style={styles.importingTitle}>Preparing your book…</Text>
+        <Text style={styles.importingTitle}>Importing your book…</Text>
       </View>
     </View>
   );
