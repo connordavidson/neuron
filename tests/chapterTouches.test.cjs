@@ -7,7 +7,7 @@ const { loadSource } = require('./loadSource.cjs');
 // Render production chapter rows, then exercise React Native's installed
 // Pressability state machine with a controlled clock. Native scroll recognition
 // is represented by responder termination; this is not a native gesture test.
-function chapterRow() {
+function chapterRow(initialPanel = 'Open chapters') {
   const slots = [];
   let cursor = 0;
   const react = {
@@ -15,7 +15,7 @@ function chapterRow() {
     useState(initial) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = initial;
-      return [slots[index], value => { slots[index] = value; }];
+      return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }];
     },
     useRef(initial) {
       const index = cursor++;
@@ -35,7 +35,7 @@ function chapterRow() {
     './ReaderProgress': { ReaderProgress: 'ReaderProgress' },
     './PageScanControl': { PageScanControl: 'PageScanControl' },
   });
-  const progress = [];
+  const progress = [], closed = [], preferences = [];
   const props = {
     book: { id: 'chapters', title: 'Chapter gestures', currentParagraph: 0 },
     content: {
@@ -43,7 +43,8 @@ function chapterRow() {
       chapters: [{ title: 'Second chapter', paragraphIndex: 1, kind: 'chapter' }],
     },
     readingOffsets: [0, 2, 4], preferences: { fontSize: 24, theme: 'paper' },
-    onProgressChange: index => progress.push(index), onClose() {}, onPreferencesChange() {},
+    onProgressChange: index => progress.push(index), onClose: index => closed.push(index),
+    onPreferencesChange: value => preferences.push(value),
   };
   function nodes(node) {
     if (Array.isArray(node)) return node.flatMap(nodes);
@@ -51,10 +52,11 @@ function chapterRow() {
     return [node, ...nodes(node.props?.children)];
   }
   const render = () => { cursor = 0; return nodes(ReaderScreen(props)); };
-  render().find(node => node.props.accessibilityLabel === 'Open chapters').props.onPress();
+  render().find(node => node.props.accessibilityLabel === initialPanel).props.onPress();
   const row = render().find(node => node.props.accessibilityLabel === 'Jump to Second chapter');
-  assert.ok(row, 'exercise the production chapter row');
-  return { props: row.props, progress, panelOpen: () => render().some(node => node.props.accessibilityLabel === 'Close chapters') };
+  if (initialPanel === 'Open chapters') assert.ok(row, 'exercise the production chapter row');
+  return { props: row?.props, progress, closed, preferences, render,
+    panelOpen: () => render().some(node => node.props.accessibilityLabel === 'Close chapters') };
 }
 
 function pressability(row, t) {
@@ -140,4 +142,32 @@ test('accessibility activation still jumps to the chapter', t => {
   handlers.onClick(event);
   assert.deepEqual(row.progress, [1]);
   assert.equal(row.panelOpen(), false);
+});
+
+for (const [openLabel, closeLabel] of [['Open chapters', 'Close chapters'], ['Reading settings', 'Close reading settings']]) {
+  test(`outside tap dismisses ${openLabel} without changing the reader`, () => {
+    const reader = chapterRow(openLabel);
+    const nodes = reader.render();
+    const backdrop = nodes.find(node => node.props.accessibilityLabel === 'Dismiss reader panel');
+    assert.ok(backdrop, 'an open panel must intercept outside taps');
+    assert.ok(nodes.indexOf(backdrop) > nodes.findIndex(node => node.props.accessibilityLabel === 'Back to library'));
+    assert.ok(nodes.indexOf(backdrop) < nodes.findIndex(node => node.props.accessibilityLabel === closeLabel), 'panel controls remain above the dismiss surface');
+    backdrop.props.onPress();
+    const next = reader.render();
+    assert.ok(!next.some(node => node.props.accessibilityLabel === closeLabel));
+    assert.ok(!next.some(node => node.props.accessibilityLabel === 'Dismiss reader panel'));
+    assert.deepEqual(reader.progress, []);
+    assert.deepEqual(reader.closed, []);
+    assert.deepEqual(reader.preferences, []);
+    assert.equal(next.find(node => node.type === 'PageScanControl').props.visible, true, 'reader controls stay visible after dismissal');
+  });
+}
+
+test('font controls inside the settings panel remain interactive without dismissing it', () => {
+  const reader = chapterRow('Reading settings');
+  reader.render().find(node => node.props.accessibilityLabel === 'Increase text size').props.onPress();
+  assert.deepEqual(reader.preferences, [{ fontSize: 26, theme: 'paper' }]);
+  assert.ok(reader.render().some(node => node.props.accessibilityLabel === 'Close reading settings'));
+  assert.deepEqual(reader.closed, []);
+  assert.deepEqual(reader.progress, []);
 });
