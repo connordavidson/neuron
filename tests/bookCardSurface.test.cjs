@@ -99,6 +99,8 @@ test('revealed Delete is a compact icon button with an accessible touch target',
   const style = styleOf(action, false);
   assert.ok(style.width >= 44 && style.width <= 56, 'compact width with a usable touch target');
   assert.ok(style.height >= 44 && style.height <= 56, 'compact height with a usable touch target');
+  assert.equal(style.width, style.height, 'the trash button must be circular');
+  assert.ok(style.borderRadius >= style.width / 2, 'round the trash button completely');
   assert.equal(action.props.accessibilityRole, 'button');
   assert.equal(action.props.accessibilityElementsHidden, false);
   assert.equal(action.props.pointerEvents, 'auto');
