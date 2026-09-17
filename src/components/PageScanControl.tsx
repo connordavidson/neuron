@@ -15,6 +15,8 @@ type Props = {
   layoutRevision?: string;
   currentPosition: () => number;
   onJump: (position: number) => void;
+  acquireCamera?: () => Promise<() => void>;
+  onActivityChange?: (active: boolean) => void;
   visible: boolean;
   hiddenByPanel: boolean;
   opacity: Animated.Value;
@@ -25,32 +27,37 @@ type Props = {
 const initialState: PageScanState = { phase: 'closed', busy: false };
 
 export function PageScanControl({
-  bookId, bookTitle, paragraphs, layoutRevision, currentPosition, onJump,
+  bookId, bookTitle, paragraphs, layoutRevision, currentPosition, onJump, acquireCamera, onActivityChange,
   visible, hiddenByPanel, opacity, disabled, theme,
 }: Props) {
   const [state, setState] = useState<PageScanState>(initialState);
   const sessionRef = useRef<PageScanSession | null>(null);
-  const callbacks = useRef({ currentPosition, onJump });
-  callbacks.current = { currentPosition, onJump };
+  const callbacks = useRef({ currentPosition, onJump, acquireCamera, onActivityChange });
+  callbacks.current = { currentPosition, onJump, acquireCamera, onActivityChange };
 
   useEffect(() => {
     const session = new PageScanSession({
       paragraphs,
       currentPosition: () => callbacks.current.currentPosition(),
       jump: position => callbacks.current.onJump(position),
+      acquireCamera: async () => callbacks.current.acquireCamera?.() ?? (() => {}),
       scan: async () => {
         if (typeof PDFTextExtractor.scanBookPage !== 'function') {
           throw Object.assign(new Error('Rebuild the iOS app to enable page scanning.'), { code: 'ERR_SCAN_REBUILD' });
         }
         return PDFTextExtractor.scanBookPage();
       },
-      onChange: setState,
+      onChange: next => {
+        callbacks.current.onActivityChange?.(next.phase !== 'closed' || next.busy);
+        setState(next);
+      },
     });
     sessionRef.current = session;
     setState(initialState);
     return () => {
       session.dispose();
       sessionRef.current = null;
+      callbacks.current.onActivityChange?.(false);
     };
   }, [bookId, paragraphs, layoutRevision]);
 

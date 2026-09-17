@@ -40,6 +40,7 @@ const nativeErrorMessages: Record<string, string> = {
 type Options = {
   paragraphs: readonly string[];
   scan: () => Promise<string | null>;
+  acquireCamera?: () => Promise<() => void>;
   currentPosition: () => number;
   jump: (position: number) => void;
   onChange: (state: PageScanState) => void;
@@ -89,8 +90,19 @@ export class PageScanSession {
     const request = ++this.request;
     const previous = this.options.currentPosition();
     const isCancelled = () => this.disposed || request !== this.request;
+    let releaseCamera: (() => void) | undefined;
     this.publish({ phase: 'working', busy: true });
     try {
+      if (this.options.acquireCamera) {
+        const release = await this.options.acquireCamera();
+        let released = false;
+        releaseCamera = () => {
+          if (released) return;
+          released = true;
+          release();
+        };
+        if (isCancelled()) return;
+      }
       const text = await this.options.scan();
       if (isCancelled()) return;
       if (text == null) {
@@ -116,7 +128,11 @@ export class PageScanSession {
     } finally {
       // Cancel keeps the button locked until native work settles, preventing
       // a second camera presentation while the first request is finishing.
-      if (!this.disposed) this.publish({ ...this.state, busy: false });
+      try {
+        releaseCamera?.();
+      } finally {
+        if (!this.disposed) this.publish({ ...this.state, busy: false });
+      }
     }
   }
 }

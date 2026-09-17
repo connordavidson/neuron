@@ -225,3 +225,138 @@ test('dismissing Undo or starting a new scan clears the previous return position
   h.session.open();
   assert.equal(h.session.state.undoPosition, undefined);
 });
+
+test('scanner waits for camera ownership and duplicate taps cannot bypass acquisition', async () => {
+  const acquisition = deferred();
+  const capture = deferred();
+  let scans = 0, acquisitions = 0, releases = 0;
+  const h = harness(() => { scans += 1; return capture.promise; }, {
+    acquireCamera: () => { acquisitions += 1; return acquisition.promise; },
+  });
+  const pending = h.session.start();
+  await h.session.start();
+  assert.equal(acquisitions, 1);
+  assert.equal(scans, 0);
+  assert.equal(h.session.state.busy, true);
+  acquisition.resolve(() => { releases += 1; });
+  await Promise.resolve();
+  assert.equal(scans, 1);
+  assert.equal(releases, 0);
+  capture.resolve(passage);
+  await pending;
+  assert.equal(releases, 1);
+  assert.equal(h.session.state.busy, false);
+  assert.deepEqual(h.jumps, [2]);
+});
+
+for (const action of ['cancel', 'dispose']) {
+  test(`${action} while waiting for camera releases a late lease without presenting scanner`, async () => {
+    const acquisition = deferred();
+    let scans = 0, releases = 0;
+    const h = harness(async () => { scans += 1; return passage; }, {
+      acquireCamera: () => acquisition.promise,
+    });
+    const pending = h.session.start();
+    h.session[action]();
+    const notificationCount = h.states.length;
+    assert.equal(h.session.state.busy, true);
+    acquisition.resolve(() => { releases += 1; });
+    await pending;
+    assert.equal(scans, 0);
+    assert.equal(releases, 1);
+    assert.deepEqual(h.jumps, []);
+    if (action === 'dispose') assert.equal(h.states.length, notificationCount);
+    else assert.equal(h.session.state.busy, false);
+  });
+}
+
+test('camera acquisition rejection allows retry without presenting scanner', async () => {
+  let scans = 0;
+  const h = harness(async () => { scans += 1; return passage; }, {
+    acquireCamera: async () => { throw new Error('Camera handoff failed'); },
+  });
+  await h.session.start();
+  assert.equal(scans, 0);
+  assert.equal(h.session.state.busy, false);
+  assert.equal(h.session.state.phase, 'error');
+  assert.deepEqual(h.jumps, []);
+});
+
+test('scan and match errors release their camera lease exactly once', async () => {
+  for (const failure of ['scan', 'match']) {
+    let releases = 0;
+    const h = harness(async () => {
+      if (failure === 'scan') throw new Error('Camera failed');
+      return passage;
+    }, {
+      acquireCamera: async () => () => { releases += 1; },
+      match: async () => { throw new Error('Matching failed'); },
+    });
+    await h.session.start();
+    h.session.cancel();
+    h.session.dispose();
+    assert.equal(releases, 1);
+    assert.equal(h.session.state.busy, false);
+    assert.deepEqual(h.jumps, []);
+  }
+});
+
+for (const action of ['cancel', 'dispose']) {
+  test(`${action} of an active scan keeps camera ownership until native capture settles`, async () => {
+    const capture = deferred();
+    let releases = 0;
+    const h = harness(() => capture.promise, { acquireCamera: async () => () => { releases += 1; } });
+    const pending = h.session.start();
+    await Promise.resolve();
+    h.session[action]();
+    const notificationCount = h.states.length;
+    assert.equal(releases, 0);
+    assert.equal(h.session.state.busy, true);
+    capture.reject(new Error('Late camera error'));
+    await pending;
+    assert.equal(releases, 1);
+    if (action === 'dispose') assert.equal(h.states.length, notificationCount);
+    else {
+      assert.equal(h.session.state.busy, false);
+      assert.equal(h.session.state.phase, 'closed');
+    }
+  });
+}
+
+test('scan control reports modal and pending-camera activity, then resets on cleanup', async () => {
+  const { createRenderer, nativeMock, settle } = require('./helpers/render.cjs');
+  const renderer = createRenderer();
+  const native = nativeMock();
+  native.AccessibilityInfo = { announceForAccessibility() {} };
+  const capture = deferred();
+  const activity = [];
+  let releases = 0;
+  const { PageScanControl } = loadSource('src/components/PageScanControl.tsx', {
+    react: renderer.react,
+    'react-native': native,
+    'modules/pdf-text-extractor/src/PDFTextExtractorModule.ts': { scanBookPage: () => capture.promise },
+  });
+  renderer.mount(PageScanControl, {
+    bookId: 'book', bookTitle: 'Garden', paragraphs, currentPosition: () => 0, onJump() {},
+    visible: true, hiddenByPanel: false, opacity: new native.Animated.Value(1), disabled: false,
+    theme: { foreground: '#000', background: '#fff', secondary: '#666' },
+    acquireCamera: async () => () => { releases += 1; },
+    onActivityChange: active => activity.push(active),
+  });
+  renderer.nodes().find(node => node.props.accessibilityLabel === 'Scan page').props.onPress();
+  assert.equal(activity.at(-1), true);
+  const cameraButton = renderer.nodes().find(node => node.type === 'Pressable'
+    && node.props.children?.some(child => child?.props?.children?.includes('Open camera')));
+  cameraButton.props.onPress();
+  await settle();
+  renderer.nodes().find(node => node.type === 'Modal').props.onRequestClose();
+  assert.equal(activity.at(-1), true, 'closed modal remains active while capture is busy');
+  capture.resolve(null);
+  await settle();
+  assert.equal(activity.at(-1), false);
+  assert.equal(releases, 1);
+  renderer.nodes().find(node => node.props.accessibilityLabel === 'Scan page').props.onPress();
+  assert.equal(activity.at(-1), true);
+  renderer.unmount();
+  assert.equal(activity.at(-1), false);
+});

@@ -40,6 +40,7 @@ export const styles = StyleSheet.create({
   chromeChapter: { fontSize: 11, lineHeight: 15, fontWeight: '600', marginTop: 2, textAlign: 'center' },
   chapterMeta: { fontSize: 12, marginTop: 4, marginBottom: 4 },
   settingsPanel: {
+    maxHeight: '85%',
     borderRadius: 24,
     borderWidth: 1,
     bottom: 16,
@@ -116,4 +117,10 @@ export const styles = StyleSheet.create({
   supplementRow: { borderBottomColor: '#E5E1E9', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13 },
   supplementKind: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
   supplementText: { fontFamily: 'Georgia', fontSize: 15, lineHeight: 22, marginTop: 5 },
+  gazeSettings: { marginTop: 20, paddingTop: 18, borderTopWidth: StyleSheet.hairlineWidth },
+  gazeSettingsBody: { fontSize: 12, lineHeight: 18, marginTop: 8 },
+  gazeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  gazeAction: { minHeight: 44, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, justifyContent: 'center' },
+  gazeStatus: { position: 'absolute', left: 32, right: 32, alignItems: 'center' },
+  gazeStatusText: { fontSize: 11, lineHeight: 15, textAlign: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
 });

@@ -31,7 +31,7 @@ function chapterRow(initialPanel = 'Open chapters') {
     Animated: { Value: class {}, View: 'AnimatedView', timing: () => ({ start() {} }) },
   };
   const { ReaderScreen } = loadSource('src/components/ReaderScreen.tsx', {
-    react, 'react-native': native, 'expo-status-bar': { StatusBar: 'StatusBar' },
+    expo: { requireOptionalNativeModule: () => null }, react, 'react-native': native, 'expo-status-bar': { StatusBar: 'StatusBar' },
     './ReaderProgress': { ReaderProgress: 'ReaderProgress' },
     './PageScanControl': { PageScanControl: 'PageScanControl' },
   });

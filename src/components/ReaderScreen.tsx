@@ -12,6 +12,9 @@ import {
 import { StatusBar } from 'expo-status-bar';
 
 import { useReaderNavigation } from '../hooks/useReaderNavigation';
+import { useEyeTracking } from '../hooks/useEyeTracking';
+import { ReaderGazeText } from '../../modules/reader-eye-tracking/src/ReaderGazeText';
+import type { WordEstimate } from '../../modules/reader-eye-tracking/src/ReaderEyeTracking.types';
 import { ChaptersPanel, ContextPanel, SettingsPanel } from './ReaderPanels';
 import { styles } from './readerStyles';
 import { readerThemes } from '../theme';
@@ -43,8 +46,26 @@ export function ReaderScreen({
   onProgressChange,
 }: Props) {
   const { viewport, pageHeight, session, initialParagraph, currentParagraph, listRef,
-    onLayout, commitScrollOffset, getItemLayout, jumpToPosition } = useReaderNavigation(book, content, onProgressChange);
+    onLayout, commitScrollOffset, getItemLayout, jumpToPosition, settledParagraph,
+    onScrollBeginDrag, onScrollEndDrag, onMomentumScrollBegin, onMomentumScrollEnd,
+    onContentSizeChange } = useReaderNavigation(book, content, onProgressChange);
   const [panel, setPanel] = useState<'settings' | 'chapters' | 'context' | null>(null);
+  const [scannerActive, setScannerActive] = useState(false);
+  const eyeTracking = useEyeTracking(panel !== null, scannerActive);
+  const [wordEstimate, setWordEstimate] = useState<WordEstimate | null>(null);
+  const activeGazeTarget = useRef({ sessionId: '', passageId: '', revisionPrefix: '' });
+  const gazeRevision = `${content.layoutRevision ?? 'saved'}:${viewport.width}:${viewport.height}`;
+  activeGazeTarget.current = { sessionId: eyeTracking.sessionId, passageId: `${book.id}:${settledParagraph}`,
+    revisionPrefix: `${gazeRevision}:${preferences.fontSize}:` };
+  const onWordEstimate = useCallback((estimate: WordEstimate) => {
+    const target = activeGazeTarget.current;
+    if (estimate.sessionId === target.sessionId && estimate.passageId === target.passageId
+      && estimate.layoutRevision.startsWith(target.revisionPrefix)) setWordEstimate(estimate);
+  }, []);
+  const wordPaused = wordEstimate?.sessionId === eyeTracking.sessionId
+    && wordEstimate.passageId === `${book.id}:${settledParagraph}`
+    && wordEstimate.layoutRevision.startsWith(`${gazeRevision}:${preferences.fontSize}:`)
+    && wordEstimate.quality === 'unavailable';
   const showSettings = panel === 'settings';
   const showChapters = panel === 'chapters';
   const showContext = panel === 'context';
@@ -106,11 +127,13 @@ export function ReaderScreen({
             initialScrollIndex={initialParagraph}
             keyExtractor={(_item, index) => `${book.id}-${index}`}
             maxToRenderPerBatch={3}
-            onMomentumScrollEnd={commitScrollOffset}
+            onMomentumScrollBegin={onMomentumScrollBegin}
+            onMomentumScrollEnd={onMomentumScrollEnd}
+            onContentSizeChange={onContentSizeChange}
             onScroll={commitScrollOffset}
             scrollEventThrottle={16}
-            onScrollBeginDrag={() => session.beginDrag()}
-            onScrollEndDrag={commitScrollOffset}
+            onScrollBeginDrag={onScrollBeginDrag}
+            onScrollEndDrag={onScrollEndDrag}
             onScrollToIndexFailed={() => {
               requestAnimationFrame(() => {
                 listRef.current?.scrollToOffset({ animated: false, offset: session.index * pageHeight });
@@ -120,13 +143,24 @@ export function ReaderScreen({
             snapToInterval={pageHeight}
             snapToAlignment="start"
             removeClippedSubviews={false}
-            renderItem={({ item }) => (
+            extraData={`${eyeTracking.state.enabled}:${eyeTracking.state.calibrated}:${eyeTracking.state.phase}:${settledParagraph}:${panel}:${scannerActive}:${preferences.fontSize}:${preferences.theme}:${chromeVisible}`}
+            renderItem={({ item, index }) => (
               <ParagraphPage
                 fontSize={preferences.fontSize}
                 height={pageHeight}
                 onPress={() => setChrome(!chromeVisible)}
                 text={item}
                 theme={activeTheme}
+                gaze={eyeTracking.state.enabled ? {
+                  sessionId: eyeTracking.sessionId,
+                  passageId: `${book.id}:${index}`,
+                  layoutRevision: gazeRevision,
+                  pageIndex: index, pageHeight,
+                  onWordEstimate,
+                  trackingActive: eyeTracking.state.calibrated && settledParagraph === index
+                    && panel === null && !scannerActive
+                    && eyeTracking.state.phase !== 'calibrating' && eyeTracking.state.phase !== 'error',
+                } : undefined}
               />
             )}
             showsVerticalScrollIndicator={false}
@@ -240,7 +274,23 @@ export function ReaderScreen({
           opacity={chromeOpacity}
           disabled={pageHeight <= 0}
           theme={activeTheme}
+          acquireCamera={eyeTracking.acquireCamera}
+          onActivityChange={setScannerActive}
         />
+
+        {eyeTracking.state.enabled && panel === null && !scannerActive ? (
+          <View pointerEvents="none" style={[styles.gazeStatus, { bottom: chromeVisible ? 62 : 16 }]}>
+            <Text style={[styles.gazeStatusText, { color: activeTheme.secondary, backgroundColor: activeTheme.background }]}>
+              {eyeTracking.state.phase === 'error' ? eyeTracking.state.message
+                : wordPaused ? 'Eye tracking paused · Look back at the text'
+                : eyeTracking.state.phase === 'paused' || eyeTracking.state.quality === 'unavailable'
+                  ? eyeTracking.state.message ?? 'Eye tracking paused'
+                  : eyeTracking.state.quality === 'low'
+                    ? 'Estimated word · Recalibrate in reading settings'
+                    : 'Eye tracking · Estimated word'}
+            </Text>
+          </View>
+        ) : null}
 
         {showChapters || showSettings ? (
           <Pressable
@@ -255,7 +305,9 @@ export function ReaderScreen({
 
         {showContext ? <ContextPanel activeTheme={activeTheme} preferences={preferences} onClose={() => setPanel(null)} currentSupplements={currentSupplements} /> : null}
 
-        {showSettings ? <SettingsPanel activeTheme={activeTheme} preferences={preferences} onClose={() => setPanel(null)} onPreferencesChange={onPreferencesChange} themeOptions={themeOptions} /> : null}
+        {showSettings ? <SettingsPanel activeTheme={activeTheme} preferences={preferences} onClose={() => setPanel(null)} onPreferencesChange={onPreferencesChange} themeOptions={themeOptions}
+          eyeTracking={{ capabilities: eyeTracking.capabilities, state: eyeTracking.state,
+            onStop: eyeTracking.disable, onCalibrate: () => { setPanel(null); eyeTracking.calibrate(); } }} /> : null}
 
 
       </View>
@@ -269,12 +321,15 @@ function ParagraphPage({
   fontSize,
   theme,
   onPress,
+  gaze,
 }: {
   text: string;
   height: number;
   fontSize: number;
   theme: (typeof readerThemes)[ReaderThemeName];
   onPress: () => void;
+  gaze?: { sessionId: string; passageId: string; layoutRevision: string; trackingActive: boolean;
+    pageIndex: number; pageHeight: number; onWordEstimate: (estimate: WordEstimate) => void };
 }) {
   const [textViewportHeight, setTextViewportHeight] = useState(0);
   const [textContentHeight, setTextContentHeight] = useState(0);
@@ -292,7 +347,13 @@ function ParagraphPage({
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
       >
-        <Pressable
+        {gaze ? <View style={styles.textPressable}>
+          <Pressable accessible={false} onPress={onPress} style={StyleSheet.absoluteFill} />
+          <ReaderGazeText sessionId={gaze.sessionId} passageId={gaze.passageId} layoutRevision={gaze.layoutRevision}
+            pageIndex={gaze.pageIndex} pageHeight={gaze.pageHeight} trackingActive={gaze.trackingActive}
+            text={text} fontSize={fontSize} textColor={theme.foreground} onPress={onPress}
+            onWordChange={event => gaze.onWordEstimate(event.nativeEvent)} />
+        </View> : <Pressable
           accessibilityHint="Swipe up or down for another reading page. Tap to hide or show controls."
           accessibilityLabel={text}
           onPress={onPress}
@@ -311,7 +372,7 @@ function ParagraphPage({
         >
           {text}
         </Text>
-        </Pressable>
+        </Pressable>}
       </ScrollView>
     </View>
   );

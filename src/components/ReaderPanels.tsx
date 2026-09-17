@@ -1,5 +1,7 @@
 import React from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import type { TrackingCapabilities } from '../../modules/reader-eye-tracking/src/ReaderEyeTracking.types';
+import type { EyeTrackingState } from '../lib/eyeTrackingSession';
 import type { readerThemes } from '../theme';
 import type { BookContent, Chapter, ContextualSupplement, ReaderPreferences, ReaderThemeName } from '../types';
 import { styles } from './readerStyles';
@@ -93,7 +95,9 @@ export function ContextPanel({ activeTheme, preferences, onClose, currentSupplem
   );
 }
 
-export function SettingsPanel({ activeTheme, preferences, onClose, onPreferencesChange, themeOptions }: PanelProps & { onPreferencesChange: (preferences: ReaderPreferences) => void; themeOptions: [ReaderThemeName, Theme][] }) {
+type EyeTrackingSettings = { capabilities: TrackingCapabilities; state: EyeTrackingState; onCalibrate: () => void; onStop: () => void };
+
+export function SettingsPanel({ activeTheme, preferences, onClose, onPreferencesChange, themeOptions, eyeTracking }: PanelProps & { onPreferencesChange: (preferences: ReaderPreferences) => void; themeOptions: [ReaderThemeName, Theme][]; eyeTracking?: EyeTrackingSettings }) {
   return (
     <View
             style={[
@@ -104,6 +108,7 @@ export function SettingsPanel({ activeTheme, preferences, onClose, onPreferences
               },
             ]}
           >
+            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
             <View style={styles.settingsHeader}>
               <Text style={[styles.settingsTitle, { color: activeTheme.foreground }]}>Reading</Text>
               <Pressable
@@ -183,6 +188,29 @@ export function SettingsPanel({ activeTheme, preferences, onClose, onPreferences
                 );
               })}
             </View>
+            {eyeTracking ? <View style={[styles.gazeSettings, { borderTopColor: activeTheme.secondary + '30' }]}>
+              <Text style={[styles.settingsTitle, { color: activeTheme.foreground }]}>Eye tracking — Experimental</Text>
+              <Text style={[styles.gazeSettingsBody, { color: activeTheme.secondary }]}>
+                {eyeTracking.capabilities.available
+                  ? 'Outline the word you’re most likely looking at. Start with a 20–30 second calibration. Estimates may be wrong.'
+                  : eyeTracking.capabilities.reason}
+              </Text>
+              <Text style={[styles.gazeSettingsBody, { color: activeTheme.secondary }]}>Uses the front camera while reading. Processed on device; camera images and gaze history are not saved. Stops when you leave the reader.</Text>
+              {eyeTracking.capabilities.available ? <View style={styles.gazeActions}>
+                <Pressable accessibilityRole="button" accessibilityLabel={eyeTracking.state.enabled ? 'Recalibrate eye tracking' : 'Start eye tracking'}
+                  disabled={eyeTracking.state.busy} accessibilityState={{ disabled: eyeTracking.state.busy }}
+                  onPress={eyeTracking.onCalibrate} style={[styles.gazeAction, { borderColor: activeTheme.secondary + '50' }, eyeTracking.state.busy && { opacity: 0.5 }]}>
+                  <Text style={{ color: activeTheme.foreground }}>{eyeTracking.state.enabled ? 'Recalibrate' : 'Start eye tracking'}</Text>
+                </Pressable>
+                {eyeTracking.state.enabled ? <Pressable accessibilityRole="button" accessibilityLabel="Stop eye tracking" onPress={eyeTracking.onStop} style={styles.gazeAction}>
+                  <Text style={{ color: activeTheme.foreground }}>Turn off</Text>
+                </Pressable> : null}
+              </View> : null}
+              {eyeTracking.state.reason === 'ERR_GAZE_PERMISSION' ? <Pressable accessibilityRole="button" accessibilityLabel="Open camera settings" onPress={() => { void Linking.openSettings().catch(() => {}); }} style={styles.gazeAction}>
+                <Text style={{ color: activeTheme.foreground }}>Open Settings</Text>
+              </Pressable> : null}
+            </View> : null}
+            </ScrollView>
           </View>
   );
 }

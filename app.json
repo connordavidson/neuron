@@ -14,7 +14,7 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "FlowReader connects to the Expo development server on your Mac to load the app during development.",
-        "NSCameraUsageDescription": "Scan a page in your physical book to find your place in the ebook. Scans are processed on your device.",
+        "NSCameraUsageDescription": "Use the camera to scan a book page or estimate the word you’re looking at with optional eye tracking. Processing stays on your device; camera images are not saved or uploaded.",
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "PDF document",

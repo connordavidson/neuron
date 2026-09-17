@@ -54,6 +54,42 @@ This feature adds native code and a camera permission description. Rebuild the d
 
 Run `node tools/benchmark_page_scan.cjs` for a deterministic desktop baseline with 300,000 synthetic book words, a 260-word scan, and simulated OCR substitutions. This measures matching only, not camera/OCR latency or physical iPhone performance. See [scan validation](design/page-scan-validation.md) for verified behavior and remaining device checks.
 
+## Experimental eye tracking
+
+On a physical Face ID iPhone, open a book, tap **Aa**, then **Start eye tracking**.
+Hold the phone as you normally read and follow the fourteen dots: nine calibration
+targets followed by five independent checks, normally about 25 seconds. The reader
+then outlines the word you are most likely looking at. **Recalibrate** and **Turn off**
+are in the same settings panel. Each reader session starts with tracking off.
+
+This is an experimental estimate, not proof of the exact word being read. It keeps
+the best word estimate when adjacent words are ambiguous, allows skips and rereading,
+and dims the last box after half a second without usable gaze. Moving pages, selecting
+text, or opening a panel hides the box until fresh gaze and stable layout are available.
+Page turns and bookmarks still work manually. Typography and imported book content
+remain unchanged.
+
+Tracking uses ARKit and the TrueDepth front camera, not Face ID authentication data.
+It runs on device. Camera images and gaze history are not saved or uploaded; calibration
+is kept only for the current reader session. Camera capture pauses for reader panels,
+page scanning, backgrounding and interruptions, and ends on leaving the reader.
+If camera access is denied, **Open Settings** in the eye tracking controls provides recovery.
+
+The simulator, iPads, devices without TrueDepth, and older development builds display
+an availability explanation and continue to support ordinary reading. Rebuild the
+native app after adding this module: JavaScript refresh alone is insufficient.
+
+Implementation is isolated on `codex/eye-tracking-word-highlight` in
+`.worktrees/eye-tracking-word-highlight`; it is not merged into `master`.
+From that worktree, run `npx expo prebuild --platform ios --no-install`, then
+`npm run ios -- --device` to build for a connected iPhone. The local module is
+autolinked during native dependency installation.
+
+See [eye tracking validation](design/eye-tracking-validation.md) for automated
+coverage, device procedures, accuracy targets, and the measurements still required.
+Removing explicit calibration is a later research goal; reusing a predicted word
+as a calibration label would reinforce errors and is deliberately avoided.
+
 ## PDF support
 
 The importer requires a PDF with a selectable text layer. Image-only scans need OCR before import. PDF text often contains visual line breaks instead of semantic paragraphs. FlowReader joins continuous text within each chapter, uses Apple's on-device Natural Language sentence tokenizer, and filters its boundaries for PDF ellipses, closing quotes, dialogue attribution, and initials. Ellipses such as `...`, `. . .`, and `…` are treated as a unit, never as individual sentences. Adjacent sentences are considered in pairs: pairs totaling at most 32 whitespace-separated words stay together, while longer pairs become two one-sentence pages. Later pairs keep their original grouping, and a final leftover sentence stands alone. Individual sentences are never split. Ambiguous punctuation can still require interpretation.
