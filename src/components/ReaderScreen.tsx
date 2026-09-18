@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +20,7 @@ import { chapterProgressMarkers, readingProgressAtPosition } from '../lib/readin
 import { currentChapterAt } from '../lib/bookStructure';
 import { ReaderProgress } from './ReaderProgress';
 import { PageScanControl } from './PageScanControl';
+import { readerTextMinHeight } from '../lib/textLayout';
 import type { BookContent, BookSummary, ReaderPreferences, ReaderThemeName } from '../types';
 
 type Props = {
@@ -120,10 +122,12 @@ export function ReaderScreen({
             snapToInterval={pageHeight}
             snapToAlignment="start"
             removeClippedSubviews={false}
-            renderItem={({ item }) => (
+            renderItem={({ item, index }) => (
               <ParagraphPage
                 fontSize={preferences.fontSize}
                 height={pageHeight}
+                width={viewport.width}
+                pageIndex={index}
                 onPress={() => setChrome(!chromeVisible)}
                 text={item}
                 theme={activeTheme}
@@ -266,18 +270,28 @@ export function ReaderScreen({
 function ParagraphPage({
   text,
   height,
+  width,
+  pageIndex,
   fontSize,
   theme,
   onPress,
 }: {
   text: string;
   height: number;
+  width: number;
+  pageIndex: number;
   fontSize: number;
   theme: (typeof readerThemes)[ReaderThemeName];
   onPress: () => void;
 }) {
   const [textViewportHeight, setTextViewportHeight] = useState(0);
   const [textContentHeight, setTextContentHeight] = useState(0);
+  const { fontScale } = useWindowDimensions();
+  const measurementKey = useMemo(() => ({}), [text, fontSize, fontScale, width, height, pageIndex]);
+  const currentMeasurementKey = useRef(measurementKey);
+  currentMeasurementKey.current = measurementKey;
+  const [measurement, setMeasurement] = useState<{ key: object; minHeight: number } | null>(null);
+  const minHeight = measurement?.key === measurementKey ? measurement.minHeight : undefined;
   return (
     <View style={[styles.page, { height }]}>
       <ScrollView
@@ -300,12 +314,22 @@ function ParagraphPage({
         >
         <Text
           selectable
+          onLayout={({ nativeEvent: { layout } }) => {
+            if (currentMeasurementKey.current !== measurementKey || layout.width <= 0 || layout.height <= 0) return;
+            // Measure the natural height once per layout. Re-measuring our own
+            // allowance would grow the paragraph on every layout callback.
+            setMeasurement(previous => previous?.key === measurementKey ? previous : {
+              key: measurementKey,
+              minHeight: readerTextMinHeight(layout.height, (pageIndex + 1) * height),
+            });
+          }}
           style={[
             styles.paragraph,
             {
               color: theme.foreground,
               fontSize,
               lineHeight: Math.round(fontSize * 1.52),
+              minHeight,
             },
           ]}
         >
