@@ -60,7 +60,7 @@ export function LibraryScreen({
             </View>
             <View>
               <Text style={styles.eyebrow}>YOUR READING FLOW</Text>
-              <Text style={styles.title}>FlowReader</Text>
+              <Text style={styles.title}>Neuron</Text>
             </View>
           </View>
 

@@ -1,6 +1,6 @@
 # Right-side reading progress mockups
 
-Three static concepts for FlowReader. Created on `codex/reading-progress-mockups`, based on `feature/corpus-driven-parser`. These are visual design artifacts; no reader code or public interfaces change.
+Three static concepts for Neuron. Created on `codex/reading-progress-mockups`, based on `feature/corpus-driven-parser`. These are visual design artifacts; no reader code or public interfaces change.
 
 ## Concepts
 

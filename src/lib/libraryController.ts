@@ -32,7 +32,7 @@ export class LibraryController {
       this.booksRef.current = books;
       this.set('books', books);
       this.set('preferences', preferences);
-    }).catch(() => { if (mounted) this.services.notify('Couldn’t load your library', 'FlowReader will start with an empty library.'); })
+    }).catch(() => { if (mounted) this.services.notify('Couldn’t load your library', 'Neuron will start with an empty library.'); })
       .finally(() => { if (mounted) this.set('isLoading', false); });
     return () => { mounted = false; };
   };
@@ -124,7 +124,7 @@ export class LibraryController {
 
         const id = this.services.createID();
         importedBookID = id;
-        const booksDirectory = new Directory(Paths.document, 'FlowReader', 'Books');
+        const booksDirectory = new Directory(Paths.document, 'Neuron', 'Books');
         booksDirectory.create({ idempotent: true, intermediates: true });
 
         destination = new File(booksDirectory, `${id}.pdf`);

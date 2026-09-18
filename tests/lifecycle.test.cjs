@@ -26,10 +26,10 @@ test('lifecycle: imported fields survive reopen and cache agrees with storage', 
 });
 
 test('lifecycle: relocated owned PDF is used for chapter refresh', async () => {
-  const h = await appHarness({ samples: [sample('a', { chapterVersion: 1 })], files: ['file:///new/FlowReader/Books/a.pdf'] });
+  const h = await appHarness({ samples: [sample('a', { chapterVersion: 1 })], files: ['file:///new/Neuron/Books/a.pdf'] });
   await h.open();
   await h.timers();
-  assert.equal(h.calls.extract[0], 'file:///new/FlowReader/Books/a.pdf');
+  assert.equal(h.calls.extract[0], 'file:///new/Neuron/Books/a.pdf');
 });
 
 for (const action of ['move', 'close', 'switch', 'reopen', 'delete']) {
