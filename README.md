@@ -57,8 +57,10 @@ Run `node tools/benchmark_page_scan.cjs` for a deterministic desktop baseline wi
 ## Experimental eye tracking
 
 On a physical Face ID iPhone, open a book, tap **Aa**, then **Start eye tracking**.
-Hold the phone as you normally read and follow the fourteen dots: nine calibration
-targets followed by five independent checks, normally about 25 seconds. The reader
+Hold the phone as you normally read and follow the dot as it jumps and pauses across
+five centered reading lines. The lines match the reader's margins, font size and
+font scaling. Nine calibration stops are followed by five independent checks,
+normally about 25 seconds. The reader
 then outlines the word you are most likely looking at. **Recalibrate** and **Turn off**
 are in the same settings panel. Each reader session starts with tracking off.
 
@@ -69,10 +71,16 @@ text, or opening a panel hides the box until fresh gaze and stable layout are av
 Page turns and bookmarks still work manually. Typography and imported book content
 remain unchanged.
 
-Tracking uses ARKit and the TrueDepth front camera, not Face ID authentication data.
+Tracking explicitly selects ARKit's front TrueDepth camera format, not Face ID authentication data.
+After starting, reading settings show **TrueDepth verified** only after three fresh,
+distinct depth frames have arrived. Camera capability alone is not treated as proof.
+Opening settings pauses capture; the message describes evidence from the session,
+not a camera that is still running behind the panel.
 It runs on device. Camera images and gaze history are not saved or uploaded; calibration
 is kept only for the current reader session. Camera capture pauses for reader panels,
 page scanning, backgrounding and interruptions, and ends on leaving the reader.
+One small local cache record contains camera type, depth-frame dimensions/count and
+timestamps for device verification. It contains no image, depth-map, face or gaze data.
 If camera access is denied, **Open Settings** in the eye tracking controls provides recovery.
 
 The simulator, iPads, devices without TrueDepth, and older development builds display

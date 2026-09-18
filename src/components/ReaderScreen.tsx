@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -51,6 +52,8 @@ export function ReaderScreen({
     onContentSizeChange } = useReaderNavigation(book, content, onProgressChange);
   const [panel, setPanel] = useState<'settings' | 'chapters' | 'context' | null>(null);
   const [scannerActive, setScannerActive] = useState(false);
+  const readerView = useRef<View>(null);
+  const { fontScale } = useWindowDimensions();
   const eyeTracking = useEyeTracking(panel !== null, scannerActive);
   const [wordEstimate, setWordEstimate] = useState<WordEstimate | null>(null);
   const activeGazeTarget = useRef({ sessionId: '', passageId: '', revisionPrefix: '' });
@@ -112,7 +115,7 @@ export function ReaderScreen({
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: activeTheme.background }]}>
       <StatusBar style={preferences.theme === 'night' ? 'light' : 'dark'} />
-      <View onLayout={onLayout} style={styles.reader}>
+      <View ref={readerView} collapsable={false} onLayout={onLayout} style={styles.reader}>
         {pageHeight > 0 ? (
           <FlatList
             key={`${viewport.width}:${viewport.height}`}
@@ -307,7 +310,15 @@ export function ReaderScreen({
 
         {showSettings ? <SettingsPanel activeTheme={activeTheme} preferences={preferences} onClose={() => setPanel(null)} onPreferencesChange={onPreferencesChange} themeOptions={themeOptions}
           eyeTracking={{ capabilities: eyeTracking.capabilities, state: eyeTracking.state,
-            onStop: eyeTracking.disable, onCalibrate: () => { setPanel(null); eyeTracking.calibrate(); } }} /> : null}
+            onStop: eyeTracking.disable, onCalibrate: () => {
+              readerView.current?.measureInWindow((readerX, readerY, readerWidth, readerHeight) => {
+                if (!readerView.current) return;
+                setPanel(null);
+                eyeTracking.calibrate({ readerX, readerY, readerWidth, readerHeight,
+                  fontSize: preferences.fontSize, fontScale,
+                  foreground: activeTheme.foreground, background: activeTheme.background });
+              });
+            } }} /> : null}
 
 
       </View>

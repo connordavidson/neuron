@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { loadSource } = require('./loadSource.cjs');
 const { deferred, settle } = require('./helpers/render.cjs');
 const { EyeTrackingSession } = loadSource('src/lib/eyeTrackingSession.ts');
+const layout = { readerX: 0, readerY: 59, readerWidth: 430, readerHeight: 839, fontSize: 24, fontScale: 1, foreground: '#1F1D19', background: '#F8F6F0' };
 
 function harness(overrides = {}) {
   const calls = [], states = [];
@@ -12,7 +13,7 @@ function harness(overrides = {}) {
     start: async id => { calls.push(['start', id]); },
     pause: async id => { calls.push(['pause', id]); },
     stop: async id => { calls.push(['stop', id]); },
-    calibrate: async id => { calls.push(['calibrate', id]); },
+    calibrate: async (id, options) => { calls.push(['calibrate', id, options]); },
     addListener: (_, callback) => { listener = callback; return { remove: () => { listener = undefined; } }; },
     ...overrides,
   };
@@ -25,11 +26,11 @@ test('gaze: off by default; an explicit start calibrates; no native module remai
   const h = harness();
   assert.equal(h.session.state.enabled, false);
   assert.deepEqual(h.calls, []);
-  await h.session.calibrate();
+  await h.session.calibrate(layout);
   assert.deepEqual(h.calls.map(c => c[0]), ['start', 'calibrate']);
   assert.equal(h.session.state.calibrated, true);
   const missing = new EyeTrackingSession(null, () => {});
-  await missing.calibrate();
+  await missing.calibrate(layout);
   assert.equal(missing.capabilities.available, false);
   assert.equal(missing.state.enabled, false);
   h.session.dispose();
@@ -38,7 +39,7 @@ test('gaze: off by default; an explicit start calibrates; no native module remai
 test('gaze: a scanner lease waits for native pause and prevents all restarts until release', async () => {
   const pause = deferred();
   const h = harness({ pause: () => pause.promise });
-  await h.session.calibrate();
+  await h.session.calibrate(layout);
   let acquired = false;
   const pending = h.session.acquireCamera().then(release => { acquired = true; return release; });
   await settle();
@@ -57,7 +58,7 @@ test('gaze: a scanner lease waits for native pause and prevents all restarts unt
 
 test('gaze: overlapping leases and background state both block restart', async () => {
   const h = harness();
-  await h.session.calibrate();
+  await h.session.calibrate(layout);
   const releaseA = await h.session.acquireCamera();
   const releaseB = await h.session.acquireCamera();
   releaseA();
@@ -74,7 +75,7 @@ test('gaze: overlapping leases and background state both block restart', async (
 test('gaze: disable during a pending permission/start never opens calibration', async () => {
   const start = deferred();
   const h = harness({ start: () => start.promise });
-  const pending = h.session.calibrate();
+  const pending = h.session.calibrate(layout);
   await settle();
   h.session.disable();
   start.resolve();
@@ -88,7 +89,7 @@ test('gaze: disable during a pending permission/start never opens calibration', 
 test('gaze: long calibration does not block camera suspension or disposal', async () => {
   const calibration = deferred();
   const h = harness({ calibrate: () => calibration.promise });
-  const pending = h.session.calibrate();
+  const pending = h.session.calibrate(layout);
   await settle();
   const release = await h.session.acquireCamera();
   assert.equal(h.calls.at(-1)[0], 'pause');
@@ -103,7 +104,7 @@ test('gaze: long calibration does not block camera suspension or disposal', asyn
 
 test('gaze: stale sessions and queued tracking events cannot override suspension or disable', async () => {
   const h = harness();
-  await h.session.calibrate();
+  await h.session.calibrate(layout);
   h.emit({ sessionId: 'obsolete-reader', phase: 'error' });
   assert.notEqual(h.session.state.phase, 'error');
   h.session.setBlocked('scanner', true);
@@ -122,7 +123,7 @@ test('gaze: permission errors and cancelled calibration provide recovery without
     denied.emit({ phase: 'error', reason: 'permission', quality: 'unavailable' });
     throw { code: 'ERR_GAZE_PERMISSION' };
   };
-  await denied.session.calibrate();
+  await denied.session.calibrate(layout);
   assert.equal(denied.session.state.reason, 'ERR_GAZE_PERMISSION');
   assert.equal(denied.session.state.busy, false);
   assert.equal(denied.session.state.calibrated, false);
@@ -131,7 +132,7 @@ test('gaze: permission errors and cancelled calibration provide recovery without
   assert.equal(denied.session.state.reason, 'ERR_GAZE_PERMISSION', 'panel suspension preserves Open Settings recovery');
   denied.session.dispose();
   const cancelled = harness({ calibrate: async () => { throw { code: 'ERR_GAZE_CANCELLED' }; } });
-  await cancelled.session.calibrate();
+  await cancelled.session.calibrate(layout);
   assert.equal(cancelled.session.state.phase, 'paused');
   assert.equal(cancelled.session.state.busy, false);
   const starts = cancelled.calls.filter(c => c[0] === 'start').length;
@@ -148,7 +149,7 @@ test('gaze: permission errors and cancelled calibration provide recovery without
 test('gaze: first permission inactivity does not drop calibration and active always reconciles', async () => {
   const permission = deferred();
   const h = harness({ start: () => permission.promise });
-  const pending = h.session.calibrate();
+  const pending = h.session.calibrate(layout);
   await settle();
   h.session.setApplicationState('inactive');
   permission.resolve();
@@ -167,7 +168,7 @@ test('gaze: disable immediately reaches native before pending permission resolve
     start: async () => { await permission.promise; if (!cancelled) captured = true; },
     stop: async () => { cancelled = true; },
   });
-  const pending = h.session.calibrate();
+  const pending = h.session.calibrate(layout);
   await settle();
   h.session.disable();
   assert.equal(cancelled, true, 'stop is not serialized behind the permission promise');
@@ -179,16 +180,16 @@ test('gaze: disable immediately reaches native before pending permission resolve
 
 test('gaze: recalibration discards prior calibrated eligibility even when cancelled', async () => {
   const h = harness();
-  await h.session.calibrate();
+  await h.session.calibrate(layout);
   h.native.calibrate = async () => { throw { code: 'ERR_GAZE_CANCELLED' }; };
-  await h.session.calibrate();
+  await h.session.calibrate(layout);
   assert.equal(h.session.state.calibrated, false);
   h.session.dispose();
 });
 
 test('gaze: an ended interruption resumes only when calibrated and camera is unclaimed', async () => {
   const h = harness();
-  await h.session.calibrate();
+  await h.session.calibrate(layout);
   h.emit({ phase: 'paused', quality: 'unavailable', reason: 'interruptionEnded' });
   await settle();
   assert.equal(h.calls.filter(c => c[0] === 'start').length, 2);
@@ -200,5 +201,33 @@ test('gaze: an ended interruption resumes only when calibrated and camera is unc
   release();
   await settle();
   assert.equal(h.calls.filter(c => c[0] === 'start').length, 2);
+  h.session.dispose();
+});
+
+
+test('gaze: calibration receives the actual reader bounds and typography', async () => {
+  const h = harness();
+  const scaled = { ...layout, readerY: 72, readerHeight: 720, fontSize: 32, fontScale: 1.3 };
+  await h.session.calibrate(scaled);
+  assert.deepEqual(h.calls.find(call => call[0] === 'calibrate'), ['calibrate', h.session.id, scaled]);
+  h.session.dispose();
+});
+
+test('gaze: live camera proof is session-scoped and clears on disable and new setup', async () => {
+  const h = harness();
+  await h.session.calibrate(layout);
+  const proof = { state: 'verified', cameraType: 'AVCaptureDeviceTypeBuiltInTrueDepthCamera', depthFrameCount: 3, depthWidth: 640, depthHeight: 480 };
+  h.emit({ phase: 'tracking', cameraVerification: proof });
+  assert.deepEqual(h.session.state.cameraVerification, proof);
+  h.session.setBlocked('panel', true);
+  h.emit({ phase: 'paused', cameraVerification: proof });
+  assert.deepEqual(h.session.state.cameraVerification, proof, 'settings can show proof after pausing capture');
+  h.emit({ sessionId: 'old-reader', phase: 'paused', cameraVerification: { state: 'unavailable' } });
+  assert.deepEqual(h.session.state.cameraVerification, proof);
+  h.session.disable();
+  assert.equal(h.session.state.cameraVerification, undefined);
+  h.session.setBlocked('panel', false);
+  await h.session.calibrate(layout);
+  assert.equal(h.session.state.cameraVerification, undefined, 'old proof must not verify a new run');
   h.session.dispose();
 });

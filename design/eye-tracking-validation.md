@@ -21,6 +21,12 @@ controller sends cancellation immediately even during a pending permission reque
 The native tracker composes `inverse(camera) * face * eye`, uses the eye's positive
 Z direction, intersects both rays with a virtual camera-space z=0 plane, and averages
 their intersections. It does not project camera pixels or access enrolled Face ID data.
+Calibration receives the measured reader viewport in window points, current font size,
+font scale and theme. Five centered line guides follow the reader's horizontal margins,
+vertical centering and rounded/scaled line height. A dot jumps between paused positions
+on those lines: nine training locations, then five different validation locations.
+The first 0.55 seconds after each jump are excluded. A layout/window change cancels
+setup rather than mixing coordinate systems; insufficient space gives a retry message.
 Nine target medians fit a robust affine mapping into top-left normalized UIWindow
 coordinates. Five later fixations provide independent mean Euclidean validation
 error. Nominal duration is 14 × 1.75 seconds; missing samples may extend a target
@@ -30,6 +36,20 @@ requested best estimate, with a low-quality status.
 Calibration coefficients, validation error, and reference head pose exist only in
 memory. Sustained pose/distance changes lower quality; prediction cannot update its
 own calibration. Native frames and camera images never cross the React bridge.
+
+The camera configuration explicitly selects a front `.builtInTrueDepthCamera` video
+format. Each capture start resets the verification record. Three distinct, fresh
+`capturedDepthDataTimestamp` values paired with nonnil depth buffers and positive
+dimensions establish live depth capture. Repeated, stale, future or invalid samples
+do not establish proof. Intermittent nil depth frames are expected because depth and
+color capture can run at different rates; they do not erase prior proof. A pause keeps
+the result for inspection in settings, and the next start verifies again.
+
+`Library/Caches/eye-tracking-camera-verification.json` overwrites one bounded local
+diagnostic record at startup, the first depth observation, verification and pause.
+It includes camera type, run/session IDs, depth dimensions/count, timestamps and
+capture-active state. It never contains images, depth buffers, face measurements,
+gaze points, passage text or word history. It is not a tracking-accuracy measurement.
 
 The native passage view uses the same TextKit 1 layout for visible text and word
 rectangles. Word identity is a UTF-16 half-open range within the displayed passage,
@@ -58,8 +78,18 @@ native code never takes the camera back on its own.
 
 Verified on this feature worktree:
 
-- TypeScript check passed; **177 tests passed, zero failed or skipped**, including
-  production Swift math and selection cases.
+- TypeScript check passed; **184 tests passed, zero failed or skipped**, including
+  production Swift math, selection, reading-line calibration geometry and live-depth
+  verification cases. Reader tests cover measured window coordinates, typography/theme
+  forwarding, leaving before measurement completes, and truthful verification status.
+- The updated signed Release iPhone build succeeded and was installed and launched
+  on the connected device. The production JavaScript bundle is included in the app;
+  a development server is not required.
+- An isolated UIKit simulator harness rendered the production calibration controller
+  at 18, 24 and 32 points: all five guides and the dot were visible without header/footer
+  overlap. Synthetic eye samples advanced through the final validation target without
+  layout cancellation when the heading or progress changed. This checks UI geometry
+  and sequencing only; it does not simulate camera accuracy.
 - Full Debug simulator build succeeded with Xcode 26.6 / iOS 26.5 SDK for arm64 and
   x86_64. Native tracker/calibration/math also typechecked against the iPhone SDK.
 - Production iOS JavaScript export succeeded.
@@ -87,9 +117,29 @@ they must run on the macOS validation machine before accepting native changes.
 
 ## Physical iPhone procedure
 
-Xcode's paired-device inventory identifies an **iPhone 15 Pro Max**, disconnected at
-implementation time. No phone-based accuracy result is claimed. A simulator cannot
-substitute for its TrueDepth camera.
+The connected device is an **iPhone 15 Pro Max running iOS 27.0**. The first prototype
+was installed as a signed standalone Release build. No phone-based accuracy result
+is claimed. A simulator cannot substitute for its TrueDepth camera.
+
+**Live camera verified on September 17, 2026 (20:29 EDT):** the updated app's record,
+retrieved directly from the connected phone, reported
+`AVCaptureDeviceTypeBuiltInTrueDepthCamera`, `state: verified`, and three distinct
+fresh 640 × 480 depth frames. The first and third depth timestamps were
+57656.038456041 and 57656.238422583 seconds; capture began at 57655.620518625 seconds.
+This establishes that the running ARKit session received data from the depth sensor.
+It does not establish eye-tracking or exact-word accuracy.
+The later paused record contained 1,937 distinct depth frames from the same run,
+ending at timestamp 57785.150388625 seconds, with `captureActive: false`.
+
+To inspect the live camera check, start tracking on the updated app and reopen
+reading settings. It must show **TrueDepth verified** only after depth frames arrive.
+The verification record can also be retrieved from the app's data container using
+`xcrun devicectl device copy from`, with domain type `appDataContainer`, domain
+identifier `com.example.flowreader`, and source
+`Library/Caches/eye-tracking-camera-verification.json`. Check that the run date matches
+the current test, camera type is `AVCaptureDeviceTypeBuiltInTrueDepthCamera`, state is
+`verified`, count is at least three, and the last depth timestamp exceeds the first.
+`captureActive: false` after opening settings is the expected camera handoff behavior.
 
 1. Build/install the feature worktree on the connected, unlocked iPhone. Record device
    model, iOS version, app commit, font size, viewing distance, lighting and glasses.
@@ -143,6 +193,8 @@ prototype, with broader release deferred.
 ## Research basis and follow-up
 
 - [Apple ARFaceAnchor eye transforms](https://developer.apple.com/documentation/arkit/arfaceanchor/lefteyetransform)
+- [Apple capture device type](https://developer.apple.com/documentation/arkit/arconfiguration/videoformat-swift.class/capturedevicetype)
+- [Apple captured depth data](https://developer.apple.com/documentation/arkit/arframe/captureddepthdata)
 - [Apple Face ID privacy](https://support.apple.com/en-ie/102381)
 - [2024 ARKit/iPad evaluation](https://pmc.ncbi.nlm.nih.gov/articles/PMC11223623/)
 - [2020 calibrated smartphone gaze research](https://www.nature.com/articles/s41467-020-18360-5)

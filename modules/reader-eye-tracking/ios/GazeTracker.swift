@@ -36,6 +36,8 @@ final class GazeTracker: NSObject, ARSessionDelegate {
   private var lastStatusKey = ""
   private var notifications: [NSObjectProtocol] = []
   private var pendingAuthorization: (() -> Void)?
+  private var cameraVerification: GazeCameraVerification?
+  private var lastStatus: (phase: String, quality: String, reason: String?, message: String?)?
 
   override private init() {
     super.init()
@@ -96,11 +98,15 @@ final class GazeTracker: NSObject, ARSessionDelegate {
     if running { completion(.success(())); return }
     epoch += 1
     let requestEpoch = epoch
+    cameraVerification = GazeCameraVerification(sessionId: id, runStartedTimestamp: CACurrentMediaTime())
+    persistCameraVerification()
     status(phase: "starting", quality: "unavailable", message: "Starting eye tracking…")
     let authorized: (Bool) -> Void = { [weak self] granted in
       guard let self else { completion(.failure(.cancelled)); return }
       guard self.epoch == requestEpoch, self.sessionId == id else { completion(.failure(.cancelled)); return }
       guard granted else {
+        self.cameraVerification?.markUnavailable()
+        self.persistCameraVerification()
         self.status(phase: "error", quality: "unavailable", reason: "permission", message: "Allow camera access in Settings to use eye tracking.")
         completion(.failure(self.error("ERR_GAZE_PERMISSION", "Allow camera access in Settings to use eye tracking.")))
         return
@@ -108,8 +114,7 @@ final class GazeTracker: NSObject, ARSessionDelegate {
       let begin = { [weak self] in
         guard let self, self.epoch == requestEpoch, self.sessionId == id else { completion(.failure(.cancelled)); return }
         guard UIApplication.shared.applicationState == .active else { completion(.failure(.cancelled)); return }
-        self.runSession()
-        completion(.success(()))
+        completion(self.runSession())
       }
       if UIApplication.shared.applicationState == .active { begin() }
       else { self.pendingAuthorization = begin }
@@ -144,10 +149,11 @@ final class GazeTracker: NSObject, ARSessionDelegate {
     calibration = nil
     driftStarted = nil
     lastStatusKey = ""
+    lastStatus = nil
     dismissCalibration(result: .failure(.cancelled)) { completion(.success(())) }
   }
 
-  func calibrate(_ id: String, presenter: UIViewController?, completion: @escaping (Result<Void, GazeTrackingError>) -> Void) {
+  func calibrate(_ id: String, layout: GazeCalibrationLayout, presenter: UIViewController?, completion: @escaping (Result<Void, GazeTrackingError>) -> Void) {
     guard sessionId == id, running else {
       completion(.failure(error("ERR_GAZE_NOT_STARTED", "Start eye tracking before calibration."))); return
     }
@@ -158,7 +164,7 @@ final class GazeTracker: NSObject, ARSessionDelegate {
           !presenter.isBeingDismissed, presenter.presentedViewController == nil else {
       completion(.failure(error("ERR_GAZE_PRESENTATION", "Close the reader panel and try calibrating again."))); return
     }
-    let controller = GazeCalibrationViewController()
+    let controller = GazeCalibrationViewController(layout: layout)
     controller.modalPresentationStyle = .fullScreen
     calibration = nil
     driftStarted = nil
@@ -192,7 +198,23 @@ final class GazeTracker: NSObject, ARSessionDelegate {
     onStatus = nil
   }
 
-  private func runSession() {
+  private func runSession() -> Result<Void, GazeTrackingError> {
+    let configuration = ARFaceTrackingConfiguration()
+    let isTrueDepth: (ARConfiguration.VideoFormat) -> Bool = {
+      $0.captureDeviceType == .builtInTrueDepthCamera && $0.captureDevicePosition == .front
+    }
+    // Face tracking also supports some RGB-only devices. Select the physical
+    // TrueDepth camera explicitly, preserving ARKit's default when it matches.
+    let selectedFormat = isTrueDepth(configuration.videoFormat)
+      ? configuration.videoFormat
+      : ARFaceTrackingConfiguration.supportedVideoFormats.first(where: isTrueDepth)
+    guard let selectedFormat else {
+      cameraVerification?.markUnavailable()
+      persistCameraVerification()
+      status(phase: "error", quality: "unavailable", reason: "camera", message: "ARKit could not select the TrueDepth front camera.")
+      return .failure(error("ERR_GAZE_TRUEDEPTH", "ARKit could not select the TrueDepth front camera."))
+    }
+    configuration.videoFormat = selectedFormat
     interrupted = false
     // Give every run a fresh delegate identity. A queued failure/interruption
     // from the old camera session must not tear down a newly resumed reader.
@@ -200,13 +222,15 @@ final class GazeTracker: NSObject, ARSessionDelegate {
     arSession = ARSession()
     arSession.delegate = self
     arSession.delegateQueue = .main
-    let configuration = ARFaceTrackingConfiguration()
     configuration.maximumNumberOfTrackedFaces = 1
     configuration.isLightEstimationEnabled = false
     configuration.isWorldTrackingEnabled = false
     runStarted = CACurrentMediaTime()
+    cameraVerification?.selectCamera(type: selectedFormat.captureDeviceType.rawValue, isTrueDepth: true, timestamp: runStarted)
     lastUsableFrame = runStarted
     running = true
+    persistCameraVerification()
+    refreshStatus()
     arSession.run(configuration, options: [.resetTracking, .removeExistingAnchors])
     heartbeat?.invalidate()
     heartbeat = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
@@ -215,6 +239,7 @@ final class GazeTracker: NSObject, ARSessionDelegate {
       self.publishInvalid("lost")
       self.status(phase: "paused", quality: "unavailable", reason: "trackingLost", message: "Tracking paused. Keep your face in view.")
     }
+    return .success(())
   }
 
   private func pauseCamera() {
@@ -222,6 +247,8 @@ final class GazeTracker: NSObject, ARSessionDelegate {
     arSession.pause()
     heartbeat?.invalidate()
     heartbeat = nil
+    cameraVerification?.markUnavailable()
+    persistCameraVerification()
   }
 
   private func cancelPendingAuthorization() {
@@ -261,6 +288,16 @@ final class GazeTracker: NSObject, ARSessionDelegate {
 
   func session(_ session: ARSession, didUpdate frame: ARFrame) {
     guard session === arSession, running, sessionId != nil, frame.timestamp >= runStarted else { return }
+    if let depth = frame.capturedDepthData {
+      let buffer = depth.depthDataMap
+      let evidenceCheckpoint = cameraVerification?.observe(
+        depthTimestamp: frame.capturedDepthDataTimestamp, frameTimestamp: frame.timestamp,
+        width: CVPixelBufferGetWidth(buffer), height: CVPixelBufferGetHeight(buffer)) ?? false
+      if evidenceCheckpoint {
+        persistCameraVerification()
+        refreshStatus()
+      }
+    }
     guard let face = frame.anchors.compactMap({ $0 as? ARFaceAnchor }).first, face.isTracked else {
       publishInvalid("lost", timestamp: frame.timestamp); return
     }
@@ -342,14 +379,30 @@ final class GazeTracker: NSObject, ARSessionDelegate {
 
   private func status(phase: String, quality: String, reason: String? = nil, message: String? = nil) {
     guard let id = sessionId else { return }
-    let key = [id, phase, quality, reason ?? "", message ?? ""].joined(separator: "|")
+    lastStatus = (phase, quality, reason, message)
+    let key = [id, phase, quality, reason ?? "", message ?? "", cameraVerification?.statusKey ?? ""].joined(separator: "|")
     guard key != lastStatusKey else { return }
     lastStatusKey = key
     var value: [String: Any] = ["sessionId": id, "phase": phase, "quality": quality]
     if let reason { value["reason"] = reason }
     if let message { value["message"] = message }
     if let calibration { value["validationError"] = calibration.validationError }
+    if let cameraVerification { value["cameraVerification"] = cameraVerification.statusValue }
     onStatus?(value)
+  }
+
+  private func refreshStatus() {
+    guard let lastStatus else { return }
+    status(phase: lastStatus.phase, quality: lastStatus.quality, reason: lastStatus.reason, message: lastStatus.message)
+  }
+
+  private func persistCameraVerification() {
+    guard let cameraVerification,
+          let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
+          let data = try? JSONSerialization.data(withJSONObject: cameraVerification.persistedValue(captureActive: running), options: [.sortedKeys]) else { return }
+    // Overwrite one bounded diagnostic record at startup, first live proof and
+    // pause. Never save camera/depth buffers or write a growing frame history.
+    try? data.write(to: directory.appendingPathComponent("eye-tracking-camera-verification.json"), options: .atomic)
   }
 
   private func error(_ code: String, _ message: String) -> GazeTrackingError { GazeTrackingError(code: code, message: message) }

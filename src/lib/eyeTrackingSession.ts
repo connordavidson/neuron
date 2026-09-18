@@ -1,4 +1,4 @@
-import type { EyeTrackingNative, TrackingCapabilities, TrackingStatus } from '../../modules/reader-eye-tracking/src/ReaderEyeTracking.types';
+import type { CalibrationLayout, EyeTrackingNative, TrackingCapabilities, TrackingStatus } from '../../modules/reader-eye-tracking/src/ReaderEyeTracking.types';
 
 export type EyeTrackingState = TrackingStatus & { enabled: boolean; calibrated: boolean; busy: boolean };
 export const initialEyeTrackingState: EyeTrackingState = {
@@ -52,10 +52,12 @@ export class EyeTrackingSession {
   private reportError(error: unknown): void {
     if (this.disposed || !this.state.enabled) return;
     const code = (error as { code?: string })?.code;
+    const message = (error as { message?: string })?.message;
     this.publish({ phase: 'error', quality: 'unavailable', reason: code,
       message: code === 'ERR_GAZE_PERMISSION'
         ? 'Allow camera access in Settings to use eye tracking.'
-        : 'Eye tracking could not start. Try calibrating again.' });
+        : code?.startsWith('ERR_GAZE_') && typeof message === 'string' && message.length > 0
+          ? message : 'Eye tracking could not start. Try calibrating again.' });
   }
 
   private reconcile(): Promise<void> {
@@ -98,16 +100,16 @@ export class EyeTrackingSession {
     }
   }
 
-  async calibrate(): Promise<void> {
+  async calibrate(layout: CalibrationLayout): Promise<void> {
     if (this.disposed || this.state.busy || !this.capabilities.available || !this.native) return;
     const operation = ++this.operation;
-    this.publish({ enabled: true, calibrated: false, busy: true, phase: 'starting', reason: undefined, message: undefined });
+    this.publish({ enabled: true, calibrated: false, busy: true, phase: 'starting', reason: undefined, message: undefined, cameraVerification: undefined });
     try {
       await this.reconcile();
       if (!this.canRun || operation !== this.operation) return;
       // Do not put this long-lived presentation on the command queue: background,
       // scanner acquisition and disable must be able to cancel it immediately.
-      await this.native.calibrate(this.id);
+      await this.native.calibrate(this.id, layout);
       if (!this.disposed && this.state.enabled && operation === this.operation) {
         this.publish({ calibrated: true });
       }
@@ -129,7 +131,7 @@ export class EyeTrackingSession {
   disable(): void {
     if (this.disposed) return;
     this.operation++;
-    this.publish({ ...initialEyeTrackingState, sessionId: this.id });
+    this.publish({ ...initialEyeTrackingState, sessionId: this.id, cameraVerification: undefined, validationError: undefined, reason: undefined, message: undefined });
     void this.reconcile().catch(() => {});
   }
 

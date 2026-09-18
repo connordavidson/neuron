@@ -1,5 +1,22 @@
 import ExpoModulesCore
 
+struct GazeCalibrationOptions: Record {
+  @Field var readerX: Double
+  @Field var readerY: Double
+  @Field var readerWidth: Double
+  @Field var readerHeight: Double
+  @Field var fontSize: Double
+  @Field var fontScale: Double
+  @Field var foreground: String
+  @Field var background: String
+
+  var layout: GazeCalibrationLayout {
+    GazeCalibrationLayout(readerX: readerX, readerY: readerY, readerWidth: readerWidth,
+                          readerHeight: readerHeight, fontSize: fontSize, fontScale: fontScale,
+                          foreground: foreground, background: background)
+  }
+}
+
 public final class ReaderEyeTrackingModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ReaderEyeTracking")
@@ -23,8 +40,8 @@ public final class ReaderEyeTrackingModule: Module {
     AsyncFunction("stop") { (sessionId: String, promise: Promise) in
       GazeTracker.shared.stop(sessionId) { result in self.resolve(promise, result) }
     }.runOnQueue(.main)
-    AsyncFunction("calibrate") { (sessionId: String, promise: Promise) in
-      GazeTracker.shared.calibrate(sessionId, presenter: self.appContext?.utilities?.currentViewController()) { result in self.resolve(promise, result) }
+    AsyncFunction("calibrate") { (sessionId: String, options: GazeCalibrationOptions, promise: Promise) in
+      GazeTracker.shared.calibrate(sessionId, layout: options.layout, presenter: self.appContext?.utilities?.currentViewController()) { result in self.resolve(promise, result) }
     }.runOnQueue(.main)
 
     View(ReaderGazeView.self) {

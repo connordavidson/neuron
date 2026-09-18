@@ -26,6 +26,7 @@ function chapterRow(initialPanel = 'Open chapters') {
     useEffect() {},
   };
   const native = {
+    useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1, scale: 3 }),
     ...Object.fromEntries(['View', 'Text', 'Pressable', 'SafeAreaView', 'ScrollView', 'FlatList'].map(name => [name, name])),
     StyleSheet: { create: styles => styles, absoluteFill: {}, hairlineWidth: 1 },
     Animated: { Value: class {}, View: 'AnimatedView', timing: () => ({ start() {} }) },

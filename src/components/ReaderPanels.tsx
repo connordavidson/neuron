@@ -192,10 +192,17 @@ export function SettingsPanel({ activeTheme, preferences, onClose, onPreferences
               <Text style={[styles.settingsTitle, { color: activeTheme.foreground }]}>Eye tracking — Experimental</Text>
               <Text style={[styles.gazeSettingsBody, { color: activeTheme.secondary }]}>
                 {eyeTracking.capabilities.available
-                  ? 'Outline the word you’re most likely looking at. Start with a 20–30 second calibration. Estimates may be wrong.'
+                  ? 'Outline the word you’re most likely looking at. Follow a dot across five reading lines for a 20–30 second calibration. Estimates may be wrong.'
                   : eyeTracking.capabilities.reason}
               </Text>
               <Text style={[styles.gazeSettingsBody, { color: activeTheme.secondary }]}>Uses the front camera while reading. Processed on device; camera images and gaze history are not saved. Stops when you leave the reader.</Text>
+              {eyeTracking.state.cameraVerification ? <Text style={[styles.gazeSettingsBody, { color: activeTheme.secondary }]}>
+                {eyeTracking.state.cameraVerification.state === 'verified'
+                  ? 'TrueDepth verified · Live depth data received during this session.'
+                  : eyeTracking.state.cameraVerification.state === 'checking'
+                    ? 'Checking for live TrueDepth data…'
+                    : 'Live depth data has not been verified. Try starting eye tracking again.'}
+              </Text> : null}
               {eyeTracking.capabilities.available ? <View style={styles.gazeActions}>
                 <Pressable accessibilityRole="button" accessibilityLabel={eyeTracking.state.enabled ? 'Recalibrate eye tracking' : 'Start eye tracking'}
                   disabled={eyeTracking.state.busy} accessibilityState={{ disabled: eyeTracking.state.busy }}

@@ -22,7 +22,7 @@ function nodes(node) {
 }
 function nativeMock() {
  const listeners={};
- return {listeners, Alert:{alert(){}},Linking:{addEventListener:()=>({remove(){}}),getInitialURL:async()=>null},Platform:{OS:'ios'},
+ return {listeners, useWindowDimensions:()=>({width:390,height:844,fontScale:1,scale:3}), Alert:{alert(){}},Linking:{addEventListener:()=>({remove(){}}),getInitialURL:async()=>null},Platform:{OS:'ios'},
  ...Object.fromEntries(['Modal','View','Text','Pressable','SafeAreaView','ScrollView','FlatList','ActivityIndicator'].map(x=>[x,x])),
  StyleSheet:{create:x=>x,absoluteFill:{}},Animated:{Value:class{constructor(value){this.value=value;}},View:'AnimatedView',timing:()=>({start(){}})},
  AppState:{addEventListener:(name,callback)=>{listeners[name]=callback;return {remove(){delete listeners[name];}};}},};
