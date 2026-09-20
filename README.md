@@ -1,11 +1,12 @@
 # neuron
 
-neuron is a new type of reader. The current app, FlowReader, is a React Native iOS reader that imports text-based ebook PDFs and turns them into a focused, vertical, two-sentence feed.
+neuron is a new type of reader. The current app, FlowReader, is a React Native iOS reader that imports text-based ebook PDFs and reflowable EPUBs and turns them into a focused, vertical, two-sentence feed.
 
 ## What it does
 
-- Imports PDFs from Files, iCloud Drive, and other iOS document providers
+- Imports PDFs and EPUBs through one picker from Files, iCloud Drive, and other iOS document providers, detecting the format from the file contents
 - Extracts text locally with Apple's PDFKit (books never leave the device)
+- Reads EPUB 2/3 metadata, spine order, nested contents, semantic sections, and linked notes locally into the same reading cards
 - Reconstructs columns, lines, paragraphs, reading order, and page-spanning prose from PDF geometry
 - Detects and removes running headers, footers, and page numbers by position, style, and document-wide repetition
 - Snaps each vertical swipe to the next reading page, pairing two sentences when they total at most 32 words
@@ -65,6 +66,20 @@ Copyright and other front matter can be reached from the section picker or by sc
 All reading pages use the selected font size. The 32-word pair limit targets roughly six lines, but actual line count depends on word lengths, font size, and screen width. Individual sentences have no hard word cap; exceptionally long sentences and older saved pairs can still scroll within their page. The progress bar stays in the right margin and hides with the reader controls. Completed chapter dots are filled and upcoming dots are outlined; tightly packed boundaries become small ticks at their true positions. Books without detected chapters show a continuous bar. A chapter's final unpaired sentence also stands alone so the next chapter starts on a fresh card.
 
 Uncertain navigation candidates are suppressed rather than presented as chapters. Bookmarked chapter titles are checked against their destination text even when font geometry is unavailable, including numbered titles split across lines. With a confirmed chapter outline, unlisted internal Part headings between chapters stay within their containing chapter. Every accepted metadata and structure value stores confidence and evidence, and every block and reading unit links back to its original PDF page and source range. PDF structure varies, so missing or unreliable text may still produce incomplete navigation; image-only PDFs are not supported.
+
+## EPUB support
+
+Use **Import a book** to select a PDF or EPUB. The app also accepts EPUB files opened from Files or other document providers. Filename extensions and provider MIME types do not override the detected file contents. Picker imports return to the library; files opened by another app enter the reader automatically.
+
+DRM-free, reflowable EPUB 2 and EPUB 3 books use the same cards, chapters, settings, word-based progress, and page scanner as PDFs. The importer follows the package spine and resolves EPUB 3 navigation or EPUB 2 NCX destinations, including chapters sharing a document and chapters spanning documents. Missing optional navigation falls back to headings. Introductory/body semantics and landmarks guide the initial position. Front matter and dedicated notes remain readable; non-linear material follows the main reading sequence and does not add to reading progress.
+
+Footnotes attach to their source references in **Notes and context**. Captions, image alternatives, and table text are retained there as text. Publisher CSS/fonts, pictures, multimedia, scripts, and remote resources are not rendered or executed. Fixed-layout publications, encrypted book content, unsupported required content, and image-only books produce a clear import error; font-only obfuscation does not prevent import. This is a text-focused EPUB adapter, not a complete EPUB visual rendering system.
+
+EPUB locations use **Reading page**, with document/offset anchors saved internally. Existing PDF storage and bookmarks remain compatible. Cached EPUBs open without parsing again, quotation repair, or PDF chapter refresh. Import failure removes the partial content and copied file. Deletion resolves owned PDF and EPUB files in the current app sandbox.
+
+Archive limits are 100 MiB compressed, 10,000 entries, 8 MiB per textual document, and 64 MiB of extracted text resources. ZIP paths, sizes, and content checksums are validated; unused images and fonts are not decompressed. UTF-8 and UTF-16 content is supported. EPUB parser changes apply to new imports; reimport to regenerate an existing book's cards.
+
+Rebuild the iOS app after this update to register EPUB document handling. For an already generated native project, run `npx expo prebuild --platform ios --no-install`, then `npm run ios`. See [EPUB validation](design/epub-validation.md) for automated coverage and device checks.
 
 ## Parser benchmark
 

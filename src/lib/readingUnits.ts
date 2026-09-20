@@ -1,4 +1,4 @@
-import type { ContentBlock, ReadingUnit, SectionNode, SourceAnchor } from '../types';
+import type { ContentBlock, ReadingUnit, SectionNode, SourceAnchor, PDFSourceAnchor, EPUBSourceAnchor } from '../types';
 import { sentenceSpans, type SentenceSpan } from './sentences';
 
 // A conservative reading-length target, not a guarantee of rendered line count.
@@ -65,7 +65,7 @@ function createReadingUnit(
   const startSegment = segmentAt(passage.segments, start);
   const endSegment = segmentAt(passage.segments, Math.max(start, end - 1));
   const sourcePages = unique(passage.segments.filter((segment) => segment.end > start && segment.start < end)
-    .map(({ block }) => block.anchor.pageIndex));
+    .flatMap(({ block }) => block.anchor.format === 'epub' ? [] : [block.anchor.pageIndex]));
   const text = spans.map(({ text: sentence }) => sentence).join(' ');
   const anchor = anchorWithinSegment(startSegment, start - startSegment.start, text);
   const endAnchor = anchorWithinSegment(endSegment, Math.max(0, end - endSegment.start), text);
@@ -101,6 +101,7 @@ export function remapReadingPosition(anchor: SourceAnchor | undefined, units: Re
 } {
   if (!units.length) return { index: 0, confidence: 0, evidence: ['new parse has no reading units'] };
   if (!anchor) return { index: 0, confidence: 0, evidence: ['old position had no source anchor'] };
+  if (anchor.format === 'epub') return remapEpubPosition(anchor, units);
   const exact = units.findIndex((unit) => unit.anchor.contextHash === anchor.contextHash);
   if (exact >= 0) return { index: exact, confidence: 0.995, evidence: ['exact normalized context hash'] };
   // Splitting an old pair shortens its context without moving its source start.
@@ -130,7 +131,7 @@ export function remapReadingPosition(anchor: SourceAnchor | undefined, units: Re
   ] };
 }
 
-export function sourceAnchorForLegacy(text: string, pageIndex: number): SourceAnchor {
+export function sourceAnchorForLegacy(text: string, pageIndex: number): PDFSourceAnchor {
   return makeSourceAnchor(pageIndex, undefined, 0, text.length, text);
 }
 
@@ -140,7 +141,7 @@ export function makeSourceAnchor(
   sourceStart: number,
   sourceEnd: number,
   context: string,
-): SourceAnchor {
+): PDFSourceAnchor {
   const contextText = normalizeContext(context).slice(0, 240);
   return { pageIndex, pageLabel, sourceStart, sourceEnd, contextText, contextHash: hashContext(contextText) };
 }
@@ -165,6 +166,10 @@ function anchorWithinSegment(segment: ReadingPassageSegment, relativeOffset: num
   const sourceLength = Math.max(0, segment.block.anchor.sourceEnd - segment.block.anchor.sourceStart);
   const sourceOffset = Math.min(sourceLength, Math.max(0, Math.round(relativeOffset / blockLength * sourceLength)));
   const sourceStart = segment.block.anchor.sourceStart + sourceOffset;
+  if (segment.block.anchor.format === 'epub') {
+    return makeEpubAnchor({ ...segment.block.anchor, sourceStart,
+      sourceEnd: sourceStart + Math.min(context.length, Math.max(0, sourceLength - sourceOffset)) }, context);
+  }
   return makeSourceAnchor(
     segment.block.anchor.pageIndex,
     segment.block.anchor.pageLabel,
@@ -172,6 +177,26 @@ function anchorWithinSegment(segment: ReadingPassageSegment, relativeOffset: num
     sourceStart + Math.min(context.length, Math.max(0, sourceLength - sourceOffset)),
     context,
   );
+}
+
+export function makeEpubAnchor(location: Omit<EPUBSourceAnchor, 'format' | 'contextHash' | 'contextText'>, context: string): EPUBSourceAnchor {
+  const contextText = normalizeContext(context).slice(0, 240);
+  return { ...location, format: 'epub', contextText, contextHash: hashContext(contextText) };
+}
+
+function remapEpubPosition(anchor: EPUBSourceAnchor, units: ReadingUnit[]): { index: number; confidence: number; evidence: string[] } {
+  const candidates = units.map((unit, index) => ({ unit, index })).filter(({ unit }) => unit.anchor.format === 'epub');
+  const sameDocument = candidates.filter(({ unit }) => unit.anchor.format === 'epub' && unit.anchor.documentPath === anchor.documentPath);
+  const exact = sameDocument.filter(({ unit }) => unit.anchor.contextHash === anchor.contextHash)
+    .sort((a, b) => Math.abs(a.unit.anchor.sourceStart - anchor.sourceStart) - Math.abs(b.unit.anchor.sourceStart - anchor.sourceStart))[0];
+  if (exact) return { index: exact.index, confidence: 0.995, evidence: ['same EPUB document and normalized context'] };
+  const prefix = sameDocument.filter(({ unit }) => unit.anchor.sourceStart === anchor.sourceStart
+    && normalizeContext(anchor.contextText ?? '').startsWith(normalizeContext(unit.anchor.contextText ?? unit.text) + ' '));
+  if (prefix.length === 1) return { index: prefix[0]!.index, confidence: 0.99, evidence: ['same EPUB document and starting offset', 'complete context prefix'] };
+  const best = (sameDocument.length ? sameDocument : candidates).map(({ unit, index }) => ({ index,
+    score: contextSimilarity(anchor.contextText ?? '', unit.anchor.contextText ?? unit.text) * 0.85
+      + (unit.anchor.sourceStart === anchor.sourceStart ? 0.1 : 0) })).sort((a, b) => b.score - a.score)[0];
+  return { index: best?.index ?? 0, confidence: Math.min(0.89, best?.score ?? 0), evidence: ['EPUB source/context similarity fallback'] };
 }
 
 function contextSimilarity(a: string, b: string): number {

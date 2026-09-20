@@ -65,7 +65,7 @@ export function LibraryScreen({
           </View>
 
           <Pressable
-            accessibilityLabel="Import PDF"
+            accessibilityLabel="Import a book"
             accessibilityRole="button"
             disabled={isImporting}
             onPress={onImport}
@@ -144,7 +144,7 @@ function EmptyLibrary({ onImport }: { onImport: () => void }) {
 
       <Text style={styles.emptyTitle}>One thought at a time</Text>
       <Text style={styles.emptyBody}>
-        Import an ebook PDF, then swipe through it paragraph by paragraph.
+        Import a PDF or EPUB, then swipe through it paragraph by paragraph.
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -152,7 +152,7 @@ function EmptyLibrary({ onImport }: { onImport: () => void }) {
         style={styles.importButton}
       >
         <Text style={styles.importButtonIcon}>↓</Text>
-        <Text style={styles.importButtonText}>Import a PDF</Text>
+        <Text style={styles.importButtonText}>Import a book</Text>
       </Pressable>
       <Text style={styles.privacyNote}>Your books stay on this device</Text>
     </View>
@@ -252,7 +252,7 @@ function BookCard({
           {book.title}
         </Text>
         <Text style={styles.bookMeta}>
-          {book.currentSourcePage != null ? `PDF page ${book.currentSourcePage}` : `Reading page ${currentPage + 1}`}
+          {book.format !== 'epub' && book.currentSourcePage != null ? `PDF page ${book.currentSourcePage}` : `Reading page ${currentPage + 1}`}
         </Text>
         <View style={styles.progressRow}>
           <View style={styles.progressTrack}>

@@ -23,6 +23,14 @@
             "CFBundleTypeMIMETypes": ["application/pdf"],
             "LSHandlerRank": "Alternate",
             "LSItemContentTypes": ["com.adobe.pdf"]
+          },
+          {
+            "CFBundleTypeName": "EPUB book",
+            "CFBundleTypeRole": "Viewer",
+            "CFBundleTypeExtensions": ["epub"],
+            "CFBundleTypeMIMETypes": ["application/epub+zip"],
+            "LSHandlerRank": "Alternate",
+            "LSItemContentTypes": ["org.idpf.epub-container"]
           }
         ],
         "LSSupportsOpeningDocumentsInPlace": true

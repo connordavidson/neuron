@@ -1,11 +1,12 @@
 import { Platform } from 'react-native';
 import PDFTextExtractor from '../../modules/pdf-text-extractor/src/PDFTextExtractorModule';
 import { parseEbook } from './contentParser';
-import { resolveBookPDF } from './bookFiles';
+import { resolveBookPDF, resolveBookFile } from './bookFiles';
+import { detectBookFormat, parseEpubFile } from './bookImport';
 import { sentenceSpans } from './sentences';
 import * as storage from './storage';
 type PDFTextExtractorModuleWithTokenizer = typeof PDFTextExtractor & { sentenceBoundaries?: (texts: string[]) => Promise<number[][]> };
-export const libraryServices = { storage, extract: (uri: string) => PDFTextExtractor.extract(uri), parse: parseEbook, tokenize: tokenizeOnDevice, resolvePDF: resolveBookPDF, now: () => new Date().toISOString(), createID, schedule: (work: () => void, delay: number) => setTimeout(work, delay), platform: Platform.OS };
+export const libraryServices = { storage, extract: (uri: string) => PDFTextExtractor.extract(uri), parse: parseEbook, parseEpub: parseEpubFile, detectFormat: detectBookFormat, tokenize: tokenizeOnDevice, resolvePDF: resolveBookPDF, resolveFile: resolveBookFile, now: () => new Date().toISOString(), createID, schedule: (work: () => void, delay: number) => setTimeout(work, delay), platform: Platform.OS };
 export type LibraryServices = typeof libraryServices & { notify: (title: string, message: string) => void };
 export function createID(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -13,17 +14,17 @@ export function createID(): string {
 
 export function fileNameFromURI(uri: string): string {
   const path = uri.split(/[?#]/, 1)[0] ?? uri;
-  const rawName = path.split('/').pop() ?? 'Imported PDF.pdf';
+  const rawName = path.split('/').pop() ?? 'Imported book';
   try {
-    return decodeURIComponent(rawName) || 'Imported PDF.pdf';
+    return decodeURIComponent(rawName) || 'Imported book';
   } catch {
-    return rawName || 'Imported PDF.pdf';
+    return rawName || 'Imported book';
   }
 }
 
 export function friendlyErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
-  return 'Something unexpected happened. Please try another PDF.';
+  return 'Something unexpected happened. Please try another PDF or EPUB.';
 }
 
 async function tokenizeOnDevice(texts: string[]): Promise<number[][]> {
