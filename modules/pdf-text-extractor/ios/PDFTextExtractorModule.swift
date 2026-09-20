@@ -105,7 +105,7 @@ public class PDFTextExtractorModule: Module {
       guard let url = URL(string: uri), url.isFileURL else {
         throw Exception(
           name: "InvalidPDFLocation",
-          description: "FlowReader could not access the selected file.",
+          description: "Neuron could not access the selected file.",
           code: "ERR_INVALID_PDF_LOCATION"
         )
       }

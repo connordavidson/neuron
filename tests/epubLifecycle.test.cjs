@@ -20,7 +20,7 @@ test('EPUB import: picker detects actual bytes despite incorrect name and MIME t
   assert.equal(h.calls.epub.length,1);
   const book=h.library().find(book=>book.format==='epub');
   assert.ok(book); assert.equal(book.originalFileName,'renamed.pdf');
-  assert.ok(h.files.has(`file:///new/FlowReader/Books/${book.id}.epub`));
+  assert.ok(h.files.has(`file:///new/Neuron/Books/${book.id}.epub`));
   assert.ok([...h.files].every(path=>!path.endsWith('.import')));
   assert.equal(h.reader(),undefined,'picker import remains in the library');
   await h.open(book.id); await h.timers();
@@ -35,7 +35,7 @@ test('EPUB import: picker detects actual bytes despite incorrect name and MIME t
   assert.ok(h.calls.handles.every(handle=>handle.closed));
   await h.remove(book.id);
   assert.equal(h.data.has(book.id),false);
-  assert.equal(h.files.has(`file:///new/FlowReader/Books/${book.id}.epub`),false);
+  assert.equal(h.files.has(`file:///new/Neuron/Books/${book.id}.epub`),false);
 });
 
 test('PDF import: a misleading EPUB extension still uses the PDF adapter',async()=>{
@@ -65,7 +65,7 @@ for(const format of ['epub','pdf']) test(`${format.toUpperCase()} import waits f
   }
   const book=h.library().find(book=>book.format===format);
   assert.ok(book);
-  assert.ok(h.files.has(`file:///new/FlowReader/Books/${book.id}.${format}`));
+  assert.ok(h.files.has(`file:///new/Neuron/Books/${book.id}.${format}`));
   assert.ok([...h.files].every(path=>!path.endsWith('.import')));
   assert.equal(h.calls.epub.length+h.calls.extract.length,1);
   assert.equal(h.alerts.length,0);
@@ -97,7 +97,7 @@ test('EPUB storage: semantic content and bookmark survive roundtrip and a fresh 
   const loaded=normalizeStoredContent(serialized,JSON.stringify({chapterVersion:999,chapters:[],layoutRevision:'epub-revision'}));
   assert.deepEqual(JSON.parse(JSON.stringify(loaded)),JSON.parse(serialized));
   const summary=summaryAtPosition({id:'book',format:'epub',title:'Garden',originalFileName:'garden.epub',currentParagraph:2},loaded,buildReadingOffsets(loaded));
-  const h=await appHarness({samples:[{summary,content:loaded}],files:['file:///new/FlowReader/Books/book.epub']});
+  const h=await appHarness({samples:[{summary,content:loaded}],files:['file:///new/Neuron/Books/book.epub']});
   await h.open('book'); await h.timers();
   assert.equal(h.reader().book.currentParagraph,2);
   assert.equal(h.calls.extract.length+h.calls.epub.length,0);

@@ -4,7 +4,7 @@
 
 ```text
 Use case: ui-mockup.
-Create a polished STATIC UI design comparison image for the existing FlowReader iOS ebook reader. Landscape canvas, high resolution, crisp readable typography. Two large identical flat portrait iPhone screen mockups side by side, PAPER left and NIGHT right, on a quiet light neutral presentation background. These are app screens with rounded corners, not photorealistic devices, no perspective, no hands, no decorative illustrations. Keep phone screens large enough to read. Under each screen add a small exterior label "PAPER" / "NIGHT".
+Create a polished STATIC UI design comparison image for the existing Neuron iOS ebook reader. Landscape canvas, high resolution, crisp readable typography. Two large identical flat portrait iPhone screen mockups side by side, PAPER left and NIGHT right, on a quiet light neutral presentation background. These are app screens with rounded corners, not photorealistic devices, no perspective, no hands, no decorative illustrations. Keep phone screens large enough to read. Under each screen add a small exterior label "PAPER" / "NIGHT".
 Preserve existing app: small top iOS status time 9:41 and understated status icons, top navigation row with circular back chevron at left, centered title "The Quiet Hours" and smaller subtitle "Chapter 4 · The Crossing", small chapters menu and Aa controls at right. Center an elegant left-aligned Georgia-like serif passage vertically in ample empty space. Both phones must contain exactly the same two-sentence passage with the same line breaks:
 "The path followed the river
 until the last houses fell
@@ -23,7 +23,7 @@ DIRECTION 01: MINIMAL DOTS. Outside phones, presentation title exactly "01 / Min
 
 ```text
 Use case: ui-mockup.
-Create a polished STATIC UI design comparison image for the existing FlowReader iOS ebook reader. Landscape canvas, high resolution, crisp readable typography. Two large identical flat portrait iPhone screen mockups side by side, PAPER left and NIGHT right, on a quiet light neutral presentation background. These are app screens with rounded corners, not photorealistic devices, no perspective, no hands, no decorative illustrations. Keep phone screens large enough to read. Under each screen add a small exterior label "PAPER" / "NIGHT".
+Create a polished STATIC UI design comparison image for the existing Neuron iOS ebook reader. Landscape canvas, high resolution, crisp readable typography. Two large identical flat portrait iPhone screen mockups side by side, PAPER left and NIGHT right, on a quiet light neutral presentation background. These are app screens with rounded corners, not photorealistic devices, no perspective, no hands, no decorative illustrations. Keep phone screens large enough to read. Under each screen add a small exterior label "PAPER" / "NIGHT".
 Preserve existing app: small top iOS status time 9:41 and understated status icons, top navigation row with circular back chevron at left, centered title "The Quiet Hours" and smaller subtitle "Chapter 4 · The Crossing", small chapters menu and Aa controls at right. Center an elegant left-aligned Georgia-like serif passage vertically in ample empty space. Both phones must contain exactly the same two-sentence passage with the same line breaks:
 "The path followed the river
 until the last houses fell
@@ -42,7 +42,7 @@ DIRECTION 02: HIGHLIGHTED CHAPTER. Outside phones, presentation title exactly "0
 
 ```text
 Use case: ui-mockup.
-Create a polished STATIC UI design comparison image for the existing FlowReader iOS ebook reader. Landscape canvas, high resolution, crisp readable typography. Two large identical flat portrait iPhone screen mockups side by side, PAPER left and NIGHT right, on a quiet light neutral presentation background. These are app screens with rounded corners, not photorealistic devices, no perspective, no hands, no decorative illustrations. Keep phone screens large enough to read. Under each screen add a small exterior label "PAPER" / "NIGHT".
+Create a polished STATIC UI design comparison image for the existing Neuron iOS ebook reader. Landscape canvas, high resolution, crisp readable typography. Two large identical flat portrait iPhone screen mockups side by side, PAPER left and NIGHT right, on a quiet light neutral presentation background. These are app screens with rounded corners, not photorealistic devices, no perspective, no hands, no decorative illustrations. Keep phone screens large enough to read. Under each screen add a small exterior label "PAPER" / "NIGHT".
 Preserve existing app: small top iOS status time 9:41 and understated status icons, top navigation row with circular back chevron at left, centered title "The Quiet Hours" and smaller subtitle "Chapter 4 · The Crossing", small chapters menu and Aa controls at right. Center an elegant left-aligned Georgia-like serif passage vertically in ample empty space. Both phones must contain exactly the same two-sentence passage with the same line breaks:
 "The path followed the river
 until the last houses fell

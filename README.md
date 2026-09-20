@@ -1,6 +1,6 @@
-# neuron
+# Neuron
 
-neuron is a new type of reader. The current app, FlowReader, is a React Native iOS reader that imports text-based ebook PDFs and reflowable EPUBs and turns them into a focused, vertical, two-sentence feed.
+Neuron is a React Native iOS reader that imports text-based ebook PDFs and reflowable EPUBs and turns them into a focused, vertical, two-sentence feed.
 
 ## What it does
 
@@ -37,7 +37,11 @@ npm install
 npm run ios
 ```
 
-The first iOS run generates the native project and links the local PDFKit module. Because FlowReader includes custom native code, use the generated development build rather than Expo Go. After that, `npm start` starts the development server for fast refresh.
+The first iOS run generates the native project and links the local PDFKit module. Because Neuron includes custom native code, use the generated development build rather than Expo Go. After that, `npm start` starts the development server for fast refresh.
+
+After the app rename, regenerate any existing native project with `npx expo prebuild --clean --platform ios`, then run `npm run ios`. This recreates the ignored native project as `Neuron.xcworkspace`; JavaScript refresh alone does not update the installed app's identity. Keep native customizations in app configuration, config plugins, or local modules because clean prebuild replaces generated native files.
+
+Neuron uses the bundle identifier `com.example.neuron`, the URL scheme `neuron://`, the `neuron.*.v1` storage keys, and `Documents/Neuron/Books` for imported PDFs and EPUBs. It installs separately from earlier app identities and starts with an empty library and default preferences. Books, reading positions, and settings from an earlier app identity are not transferred; its installed app and data remain intact.
 
 After native extractor changes, rerun `npm run ios`: refreshing JavaScript alone does not update PDFKit extraction. An older development build can fall back to text-only extraction, which loses the geometry needed for reliable chapter detection.
 
@@ -47,7 +51,7 @@ For a physical iPhone, connect and trust it, enable Developer Mode, then run `np
 
 Open the matching ebook, tap **Scan page** at the bottom of the reader, then **Open camera**. Scan one page in good light, include the top of the text, crop if needed, and tap **Save**. A strong text match moves you to the reading card containing the first reliable matching phrase. **Undo** restores and saves your previous place; the result remains available until dismissed, another scan starts, or the reader closes.
 
-The scanner uses Apple's page camera and Vision text recognition locally. Images stay in memory and are not saved or uploaded by FlowReader. Text matching searches only the open ebook and does not rely on printed page numbers. It tolerates modest OCR errors and different pagination, but translations or editions with substantially different wording may not match. V1 is validated with English prose in existing text-based PDF imports. It does not import a new ebook, search the whole library, or read a barcode.
+The scanner uses Apple's page camera and Vision text recognition locally. Images stay in memory and are not saved or uploaded by Neuron. Text matching searches only the open ebook and does not rely on printed page numbers. It tolerates modest OCR errors and different pagination, but translations or editions with substantially different wording may not match. V1 is validated with English prose in existing text-based PDF imports. It does not import a new ebook, search the whole library, or read a barcode.
 
 Short, unclear, and repeated text does not change your bookmark. Capture more surrounding body text or a clearer image and retry. If camera access is denied, use **Open Settings** to enable it. Cancellation preserves your position; a scan finishing in the background briefly keeps the scan button disabled to prevent overlapping camera requests.
 
@@ -57,7 +61,7 @@ Run `node tools/benchmark_page_scan.cjs` for a deterministic desktop baseline wi
 
 ## PDF support
 
-The importer requires a PDF with a selectable text layer. Image-only scans need OCR before import. PDF text often contains visual line breaks instead of semantic paragraphs. FlowReader joins continuous text within each chapter, uses Apple's on-device Natural Language sentence tokenizer, and filters its boundaries for PDF ellipses, closing quotes, dialogue attribution, and initials. Ellipses such as `...`, `. . .`, and `…` are treated as a unit, never as individual sentences. Adjacent sentences are considered in pairs: pairs totaling at most 32 whitespace-separated words stay together, while longer pairs become two one-sentence pages. Later pairs keep their original grouping, and a final leftover sentence stands alone. Individual sentences are never split. Ambiguous punctuation can still require interpretation.
+The importer requires a PDF with a selectable text layer. Image-only scans need OCR before import. PDF text often contains visual line breaks instead of semantic paragraphs. Neuron joins continuous text within each chapter, uses Apple's on-device Natural Language sentence tokenizer, and filters its boundaries for PDF ellipses, closing quotes, dialogue attribution, and initials. Ellipses such as `...`, `. . .`, and `…` are treated as a unit, never as individual sentences. Adjacent sentences are considered in pairs: pairs totaling at most 32 whitespace-separated words stay together, while longer pairs become two one-sentence pages. Later pairs keep their original grouping, and a final leftover sentence stands alone. Individual sentences are never split. Ambiguous punctuation can still require interpretation.
 
 Parser changes apply automatically to new imports. Existing books retain their card layout and bookmark. Outdated chapter navigation refreshes separately after opening a book, without rebuilding its reading pages. To use the latest parser for an existing PDF, import it again as a new library entry; its previous reading position is not transferred.
 

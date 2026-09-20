@@ -6,10 +6,10 @@ import { sortLibrary } from './libraryOrder';
 import { PARAGRAPH_PARSER_VERSION } from './paragraphize';
 import type { BookContent, BookSummary, ReaderPreferences, StoredBook } from '../types';
 
-const LIBRARY_KEY = 'flowreader.library.v1';
-const PREFERENCES_KEY = 'flowreader.preferences.v1';
-const bookContentKey = (id: string) => `flowreader.book.${id}.v1`;
-const chapterMetadataKey = (id: string) => `flowreader.chapters.${id}.v1`;
+const LIBRARY_KEY = 'neuron.library.v1';
+const PREFERENCES_KEY = 'neuron.preferences.v1';
+const bookContentKey = (id: string) => `neuron.book.${id}.v1`;
+const chapterMetadataKey = (id: string) => `neuron.chapters.${id}.v1`;
 let libraryWriteQueue = Promise.resolve();
 
 
