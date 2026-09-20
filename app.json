@@ -1,19 +1,19 @@
 {
   "expo": {
-    "name": "FlowReader",
-    "slug": "flowreader",
+    "name": "Neuron",
+    "slug": "neuron",
     "version": "1.0.0",
     "orientation": "portrait",
     "platforms": ["ios"],
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "scheme": "flowreader",
+    "scheme": "neuron",
     "ios": {
       "appleTeamId": "T4LY8DN565",
-      "bundleIdentifier": "com.example.flowreader",
+      "bundleIdentifier": "com.example.neuron",
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "FlowReader connects to the Expo development server on your Mac to load the app during development.",
+        "NSLocalNetworkUsageDescription": "Neuron connects to the Expo development server on your Mac to load the app during development.",
         "NSCameraUsageDescription": "Scan a page in your physical book to find your place in the ebook. Scans are processed on your device.",
         "CFBundleDocumentTypes": [
           {

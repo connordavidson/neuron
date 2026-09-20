@@ -1,7 +1,7 @@
 const { withAppDelegate } = require('expo/config-plugins');
 
 const original = 'return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")';
-const marker = '// FlowReader: resolve the development URL without blocking launch on a network probe.';
+const marker = '// Neuron: resolve the development URL without blocking launch on a network probe.';
 const replacement = `${marker}
     // A synchronous /status request can block the Local Network permission prompt
     // and exhaust iOS's launch watchdog. Let the bundle loader connect asynchronously.
@@ -27,11 +27,11 @@ module.exports = function withNonblockingDevBundle(config) {
   return withAppDelegate(config, (config) => {
     const delegate = config.modResults;
     if (delegate.language !== 'swift') {
-      throw new Error('FlowReader requires a Swift AppDelegate for development bundle configuration.');
+      throw new Error('Neuron requires a Swift AppDelegate for development bundle configuration.');
     }
     if (delegate.contents.includes(marker)) return config;
     if (!delegate.contents.includes(original)) {
-      throw new Error('FlowReader could not locate the development bundle URL in AppDelegate.');
+      throw new Error('Neuron could not locate the development bundle URL in AppDelegate.');
     }
     delegate.contents = delegate.contents.replace(original, replacement.trimEnd());
     return config;

@@ -63,7 +63,7 @@ export function PageScanControl({
   const locked = disabled || state.busy;
   const openSettings = () => {
     void Linking.openSettings().catch(() => {
-      Alert.alert('Open Settings', 'Open the Settings app, find FlowReader, and allow camera access.');
+      Alert.alert('Open Settings', 'Open the Settings app, find Neuron, and allow camera access.');
     });
   };
 
