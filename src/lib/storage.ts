@@ -34,11 +34,12 @@ export async function persistLibrary(books: BookSummary[]): Promise<void> {
 
 export async function storeBook(book: StoredBook): Promise<BookSummary> {
   const {
-    pdfUri, paragraphs, chapters, chapterVersion, paragraphPages, parserVersion,
+    source, pdfUri, paragraphs, chapters, chapterVersion, paragraphPages, parserVersion,
     metadata, sections, blocks, readingUnits, supplements, diagnostics, layoutRevision, ...summary
   } = book;
   const readingStart = book.readingStart ?? 0;
   const content: BookContent = {
+    source,
     chapters,
     chapterVersion,
     parserVersion: parserVersion ?? PARAGRAPH_PARSER_VERSION,
@@ -75,13 +76,13 @@ export async function storeChapterMetadata(id: string, content: Pick<BookContent
   await AsyncStorage.setItem(chapterMetadataKey(id), JSON.stringify(content));
 }
 
-export async function deleteBookData(id: string, pdfUri?: string): Promise<void> {
+export async function deleteBookData(id: string, sourceUri?: string): Promise<void> {
   await AsyncStorage.removeItem(bookContentKey(id));
   await AsyncStorage.removeItem(chapterMetadataKey(id));
-  if (!pdfUri) return;
+  if (!sourceUri) return;
 
   try {
-    const file = new File(pdfUri);
+    const file = new File(sourceUri);
     if (file.exists) file.delete();
   } catch {
     // A missing cached file should never prevent the library entry from being removed.

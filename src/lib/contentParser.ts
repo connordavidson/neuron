@@ -20,7 +20,7 @@ export type ParsedEbook = {
   diagnostics: ParseDiagnostics;
   chapters: Chapter[];
   paragraphs: string[];
-  paragraphPages: number[];
+  paragraphPages?: number[];
   readingStart: number;
 };
 
@@ -86,7 +86,7 @@ export async function parseEbook(
     diagnostics,
     chapters,
     paragraphs: readingUnits.map(({ text }) => text),
-    paragraphPages: readingUnits.map(({ anchor }) => anchor.pageIndex),
+    paragraphPages: readingUnits.map(({ anchor }) => anchor.pageIndex!),
     readingStart,
   };
 }

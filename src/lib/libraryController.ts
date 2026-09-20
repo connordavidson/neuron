@@ -7,7 +7,7 @@ import { fileNameFromURI, friendlyErrorMessage, type LibraryServices } from './l
 import type { BookContent, BookSummary, ReaderPreferences, StoredBook } from '../types';
 
 export type ActiveBook = { summary: BookSummary; content: BookContent; offsets: number[] };
-export type PDFSource = { uri: string; name?: string };
+export type BookSource = { uri: string; name?: string; mimeType?: string };
 export type LibraryState = { books: BookSummary[]; preferences: ReaderPreferences; activeBook: ActiveBook | null; isLoading: boolean; isImporting: boolean; openingBookID: string | null; updatingChapterIDs: string[] };
 
 export class LibraryController {
@@ -58,7 +58,7 @@ export class LibraryController {
     this.saveLibrary(this.booksRef.current.filter(candidate => candidate.id !== book.id));
     await this.mutateBook(book.id, async () => {
       const content = await this.services.storage.loadBookContent(book.id);
-      await this.services.storage.deleteBookData(book.id, this.services.resolvePDF(book.id, content?.pdfUri ?? ''));
+      await this.services.storage.deleteBookData(book.id, this.services.resolveFile(book.id, content?.source?.format ?? book.format ?? 'pdf', content?.source?.uri ?? content?.pdfUri ?? ''));
     });
   };
   saveLibrary = (nextBooks: BookSummary[]) => {
@@ -78,13 +78,13 @@ export class LibraryController {
   };
 
   refreshChapters = async (id: string, content: BookContent) => {
-    if (content.chapterVersion === CHAPTER_VERSION || this.chapterRequests.current.has(id) || this.services.platform !== 'ios') return;
+    if (content.source?.format === 'epub' || content.chapterVersion === CHAPTER_VERSION || this.chapterRequests.current.has(id) || this.services.platform !== 'ios') return;
     this.chapterRequests.current.add(id);
     this.set('updatingChapterIDs', (ids) => [...ids, id]);
     try {
       // iOS can relocate the app sandbox during an update. Resolve our owned
       // PDF from today's Documents directory instead of relying on its old URL.
-      const extraction = await this.services.extract(this.services.resolvePDF(id, content.pdfUri));
+      const extraction = await this.services.extract(this.services.resolvePDF(id, content.source?.uri ?? content.pdfUri ?? ''));
       if (!this.booksRef.current.some((book) => book.id === id)) return;
       const { chapters } = detectBookStructure(content.paragraphs, {
         sourcePages: extraction.pages,
@@ -113,10 +113,11 @@ export class LibraryController {
     }
   };
 
-  importPDFSource = async (source: PDFSource, openAfterImport = false): Promise<BookSummary | null> => {
+  importBookSource = async (source: BookSource, openAfterImport = false): Promise<BookSummary | null> => {
       if (this.state.isImporting) return null;
 
       let destination: File | undefined;
+      let staged: File | undefined;
       let importedBookID: string | undefined;
 
       try {
@@ -127,24 +128,29 @@ export class LibraryController {
         const booksDirectory = new Directory(Paths.document, 'Neuron', 'Books');
         booksDirectory.create({ idempotent: true, intermediates: true });
 
-        destination = new File(booksDirectory, `${id}.pdf`);
-        await new File(source.uri).copy(destination);
+        staged = new File(booksDirectory, `${id}.import`);
+        await new File(source.uri).copy(staged);
+        const format = await this.services.detectFormat(staged.uri);
+        destination = new File(booksDirectory, `${id}.${format}`);
+        await staged.move(destination);
 
-        if (this.services.platform !== 'ios') {
+        if (format === 'pdf' && this.services.platform !== 'ios') {
           throw new Error('PDF text extraction is currently available on iOS only.');
         }
 
-        const extraction = await this.services.extract(destination.uri);
         const originalFileName = source.name?.trim() || fileNameFromURI(source.uri);
-        const parsed = await this.services.parse(extraction, originalFileName, this.services.tokenize);
+        const parsed = format === 'epub'
+          ? await this.services.parseEpub(destination.uri, originalFileName, this.services.tokenize)
+          : await this.services.parse(await this.services.extract(destination.uri), originalFileName, this.services.tokenize);
         if (!parsed.paragraphs.length) {
-          throw new Error('This PDF has no readable text. Try running OCR on it first.');
+          throw new Error(format === 'pdf' ? 'This PDF has no readable text. Try running OCR on it first.' : 'This EPUB has no readable text. Import a text-focused edition.');
         }
 
-        const content = contentFromParsed(parsed, destination.uri, this.services.createID());
+        const content = contentFromParsed(parsed, destination.uri, this.services.createID(), format);
         const book: StoredBook = {
           ...content,
           id,
+          format,
           title: parsed.metadata.title.value,
           originalFileName,
           importedAt: this.services.now(),
@@ -154,8 +160,18 @@ export class LibraryController {
         };
         const offsets = buildReadingOffsets(content);
         const summary = await this.services.storage.storeBook({ ...book, ...summaryAtPosition(book, content, offsets) });
+        // Publish only after both content and the library index are durable. If
+        // an existing reader moved while saving, include its latest position.
+        while (true) {
+          const previous = this.booksRef.current;
+          const ordered = sortLibrary([summary, ...previous]);
+          await this.services.storage.persistLibrary(ordered);
+          if (this.booksRef.current !== previous) continue;
+          this.booksRef.current = ordered;
+          this.set('books', ordered);
+          break;
+        }
         this.contentCache.current.set(id, { content, offsets });
-        this.saveLibrary([summary, ...this.booksRef.current]);
 
         if (openAfterImport) {
           this.showBook({ summary, content, offsets });
@@ -163,8 +179,11 @@ export class LibraryController {
 
         return summary;
       } catch (error) {
-        if (importedBookID) await this.services.storage.deleteBookData(importedBookID, destination?.uri);
-        this.services.notify('Couldn’t import PDF', friendlyErrorMessage(error));
+        if (importedBookID) {
+          try { await this.services.storage.deleteBookData(importedBookID, destination?.uri); } catch { /* Report the original import error. */ }
+        }
+        try { if (staged?.exists) staged.delete(); } catch { /* Best-effort cleanup after a failed copy. */ }
+        this.services.notify('Couldn’t import book', friendlyErrorMessage(error));
         return null;
       } finally {
         this.set('isImporting', false);

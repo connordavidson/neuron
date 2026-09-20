@@ -50,13 +50,13 @@ export function ChaptersPanel({ activeTheme, preferences, onClose, navigationSta
                       {chapter.title}
                     </Text>
                     <Text style={[styles.chapterMeta, { color: activeTheme.secondary }]}>
-                      {chapter.pageIndex != null ? `PDF page ${chapter.pageIndex + 1}` : `Reading page ${chapter.paragraphIndex + 1}`}
+                      {content.source?.format !== 'epub' && chapter.pageIndex != null ? `PDF page ${chapter.pageIndex + 1}` : `Reading page ${chapter.paragraphIndex + 1}`}
                       {chapter === currentChapter ? ' · Reading now' : ''}
                     </Text>
                   </Pressable>
                 ))
               ) : (
-                !updatingChapters && <Text style={[styles.noChapters, { color: activeTheme.secondary }]}>No reliable chapters found in this PDF</Text>
+                !updatingChapters && <Text style={[styles.noChapters, { color: activeTheme.secondary }]}>No reliable chapters found in this book</Text>
               )}
             </ScrollView>
           </View>
@@ -85,7 +85,8 @@ export function ContextPanel({ activeTheme, preferences, onClose, currentSupplem
                 <View key={supplement.id} style={styles.supplementRow}>
                   <Text style={[styles.supplementKind, { color: activeTheme.secondary }]}>{supplement.kind}</Text>
                   <Text selectable style={[styles.supplementText, { color: activeTheme.foreground }]}>{supplement.text}</Text>
-                  <Text style={[styles.chapterMeta, { color: activeTheme.secondary }]}>PDF page {supplement.anchor.pageIndex + 1}</Text>
+                  <Text style={[styles.chapterMeta, { color: activeTheme.secondary }]}>{supplement.anchor.format === 'epub'
+                    ? `Reading page ${supplement.readingPage ?? 1}` : `PDF page ${supplement.anchor.pageIndex + 1}`}</Text>
                 </View>
               ))}
             </ScrollView>

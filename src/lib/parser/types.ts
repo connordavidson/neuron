@@ -1,4 +1,4 @@
-import type { SourceRect, ContentBlock, Evidence, SemanticSectionKind } from '../../types';
+import type { SourceRect, ContentBlock, Evidence, SemanticSectionKind, PDFSourceAnchor } from '../../types';
 
 export type LayoutLine = {
   id: string;
@@ -19,6 +19,7 @@ export type LayoutLine = {
 };
 
 export type InternalBlock = ContentBlock & {
+  anchor: PDFSourceAnchor;
   pageHeight: number;
   pageWidth: number;
   centered: boolean;

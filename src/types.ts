@@ -1,4 +1,6 @@
 export type ReaderThemeName = 'paper' | 'sepia' | 'night';
+export type BookFormat = 'pdf' | 'epub';
+export type BookSourceFile = { format: BookFormat; uri: string };
 
 export type Evidence = {
   confidence: number;
@@ -12,14 +14,23 @@ export type SourceRect = {
   height: number;
 };
 
-export type SourceAnchor = {
-  pageIndex: number;
-  pageLabel?: string;
+type AnchorContext = {
   sourceStart: number;
   sourceEnd: number;
   contextHash: string;
   contextText?: string;
 };
+
+export type PDFSourceAnchor = AnchorContext & { format?: 'pdf'; pageIndex: number; pageLabel?: string };
+export type EPUBSourceAnchor = AnchorContext & {
+  format: 'epub';
+  documentPath: string;
+  spineIndex: number;
+  elementId?: string;
+  pageIndex?: never;
+  pageLabel?: never;
+};
+export type SourceAnchor = PDFSourceAnchor | EPUBSourceAnchor;
 
 export type MetadataValue = Evidence & { value: string };
 
@@ -84,6 +95,7 @@ export type ContextualSupplement = Evidence & {
   text: string;
   anchor: SourceAnchor;
   relatedBlockIds: string[];
+  readingPage?: number;
 };
 
 export type ReadingUnit = {
@@ -110,10 +122,13 @@ export type SectionNode = Evidence & {
   endBlock: number;
   startUnit: number;
   endUnit: number;
-  startPage: number;
-  endPage: number;
+  startPage?: number;
+  endPage?: number;
+  linear?: boolean;
   anchor: SourceAnchor;
 };
+
+export type PDFSectionNode = SectionNode & { startPage: number; endPage: number; anchor: PDFSourceAnchor };
 
 export type ParseDiagnostics = {
   parserVersion: number;
@@ -132,6 +147,7 @@ export type ParseDiagnostics = {
 
 export type BookSummary = {
   id: string;
+  format?: BookFormat;
   title: string;
   originalFileName: string;
   importedAt: string;
@@ -157,7 +173,9 @@ export type Chapter = {
 };
 
 export type BookContent = {
-  pdfUri: string;
+  source?: BookSourceFile;
+  /** Read compatibility for books saved before format-aware sources. */
+  pdfUri?: string;
   paragraphs: string[];
   chapters: Chapter[];
   readingStart: number;

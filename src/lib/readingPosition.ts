@@ -38,7 +38,7 @@ export class ReadingSession {
 // the current page, so a page with two long sentences weighs more than a short one.
 export function buildReadingOffsets(content: BookContent): number[] {
   const start = clampReadingIndex(content.readingStart, content.paragraphs.length);
-  const optionalSections = new Set(content.sections?.filter(section => PROGRESS_EXCLUDED_KINDS.has(section.kind)).map(section => section.id));
+  const optionalSections = new Set(content.sections?.filter(section => section.linear === false || PROGRESS_EXCLUDED_KINDS.has(section.kind)).map(section => section.id));
   const offsets = [0];
   for (let index = 0; index < content.paragraphs.length; index += 1) {
     const sectionId = content.readingUnits?.[index]?.sectionId;
@@ -72,6 +72,7 @@ export function chapterProgressMarkers(content: BookContent, offsets: number[]):
   const boundaries = content.chapters
     .filter(({ kind, paragraphIndex }) => (kind === 'chapter' || kind == null)
       && Number.isInteger(paragraphIndex) && paragraphIndex >= content.readingStart && paragraphIndex < count)
+    .filter(chapter => content.sections?.find(section => section.id === chapter.sectionId)?.linear !== false)
     .map(({ paragraphIndex }) => (offsets[paragraphIndex] ?? 0) / total)
     .filter((fraction) => fraction >= 0 && fraction < 1);
 
@@ -95,7 +96,7 @@ export function summaryAtPosition(
     paragraphCount: count,
     readingStart: start,
     readingProgress: readingProgressAtPosition(content, offsets, index),
-    currentSourcePage: content.paragraphPages?.[index] != null
+    currentSourcePage: content.source?.format !== 'epub' && content.paragraphPages?.[index] != null
       ? content.paragraphPages[index]! + 1
       : undefined,
     currentAnchor: content.readingUnits?.[index]?.anchor ?? book.currentAnchor,

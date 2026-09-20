@@ -5,13 +5,13 @@ import { LibraryScreen } from './src/components/LibraryScreen';
 import { ReaderScreen } from './src/components/ReaderScreen';
 import { useLibraryController } from './src/hooks/useLibraryController';
 import { fileNameFromURI, friendlyErrorMessage } from './src/lib/libraryServices';
-import type { PDFSource } from './src/lib/libraryController';
+import type { BookSource } from './src/lib/libraryController';
 import type { BookSummary } from './src/types';
 
 export default function App() {
   const { books, preferences, activeBook, isLoading, isImporting, openingBookID, updatingChapterIDs, controller } = useLibraryController(Alert.alert);
   const handledIncomingURLs = useRef(new Set<string>());
-  const importPDFSource = useCallback((source: PDFSource, open = false) => controller.importPDFSource(source, open), [controller, isImporting]);
+  const importBookSource = useCallback((source: BookSource, open = false) => controller.importBookSource(source, open), [controller, isImporting]);
   const { openBook, updateProgress, updatePreferences } = controller;
   const readerSession = controller.readerSession;
   const closeReader = (paragraph: number) => controller.closeReader(paragraph, readerSession);
@@ -21,15 +21,16 @@ export default function App() {
       if (handledIncomingURLs.current.has(url)) return;
       handledIncomingURLs.current.add(url);
 
-      await importPDFSource(
+      const imported = await importBookSource(
         {
           name: fileNameFromURI(url),
           uri: url,
         },
         true,
       );
+      if (!imported) handledIncomingURLs.current.delete(url);
     },
-    [importPDFSource],
+    [importBookSource],
   );
 
   useEffect(() => {
@@ -54,24 +55,24 @@ export default function App() {
     };
   }, [importIncomingURL, isLoading]);
 
-  const importPDF = useCallback(async () => {
+  const importBook = useCallback(async () => {
     if (isImporting) return;
 
     try {
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
         multiple: false,
-        type: 'application/pdf',
+        type: ['application/pdf', 'application/epub+zip'],
       });
       if (result.canceled) return;
 
       const asset = result.assets[0];
-      if (!asset) throw new Error('No PDF was selected.');
-      await importPDFSource({ name: asset.name, uri: asset.uri });
+      if (!asset) throw new Error('No book was selected.');
+      await importBookSource({ name: asset.name, uri: asset.uri, mimeType: asset.mimeType });
     } catch (error) {
-      Alert.alert('Couldn’t import PDF', friendlyErrorMessage(error));
+      Alert.alert('Couldn’t import book', friendlyErrorMessage(error));
     }
-  }, [importPDFSource, isImporting]);
+  }, [importBookSource, isImporting]);
 
   const confirmDeleteBook = useCallback(
     (book: BookSummary) => {
@@ -100,7 +101,7 @@ export default function App() {
         isImporting={isImporting}
         isLoading={isLoading}
         onDeleteBook={confirmDeleteBook}
-        onImport={importPDF}
+        onImport={importBook}
         onOpenBook={openBook}
         openingBookID={openingBookID}
       />
